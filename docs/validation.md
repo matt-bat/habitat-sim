@@ -36,6 +36,7 @@
 - Import hardening: invalid nested lineage, timeline, intervention, food-web, snapshot, surface, interior, and chemistry records are rejected.
 - Backup archive: `habitat-sim-20260717T154452Z.tar.gz`; adjacent SHA-256 verification passed.
 - Full isolated restore: pass; lockfile, engine, and license hashes matched, followed by clean install, all unit/integration tests, and production build.
+- GitHub Actions: public-repository quality and browser jobs passed; action dependencies were then advanced to their current version 7 releases to remove the Node.js runtime deprecation warning.
 
 ## Remediated Findings
 
