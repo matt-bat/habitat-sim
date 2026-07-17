@@ -1,0 +1,43 @@
+{
+  "name": "habitat-sim",
+  "version": "1.0.0",
+  "private": false,
+  "description": "A deterministic planetary habitability and life-evolution sandbox.",
+  "author": "Matt Bateman",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matt-bat/habitat-sim.git"
+  },
+  "homepage": "https://github.com/matt-bat/habitat-sim#readme",
+  "bugs": {
+    "url": "https://github.com/matt-bat/habitat-sim/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "preview": "vite preview",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "playwright test",
+    "check": "tsc --noEmit && vitest run && vite build"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.10"
+  }
+}
