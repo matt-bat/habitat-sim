@@ -3,7 +3,7 @@ import { DEFAULT_ORIGIN, DEFAULT_PARAMS } from "../src/simulation/constants";
 import { deterministicFingerprint, HabitatSimulation } from "../src/simulation/engine";
 import { defaultIntervention } from "../src/simulation/interventions";
 import { createSeededLineage } from "../src/simulation/life";
-import { normalizeParams } from "../src/simulation/planet";
+import { applyAtmosphereFlux, atmospherePartialPressures, habitableZoneFluxLimits, planetObservables, stellarFlux, normalizeParams } from "../src/simulation/planet";
 import { makeRandom } from "../src/simulation/random";
 
 describe("HabitatSimulation", () => {
@@ -21,6 +21,36 @@ describe("HabitatSimulation", () => {
     expect(Object.values(params.atmosphere).reduce((sum, value) => sum + value, 0)).toBeCloseTo(1, 8);
     expect(params.atmosphere.co2).toBeGreaterThanOrEqual(0);
     expect(params.atmosphere.h2).toBeGreaterThan(0);
+  });
+
+  it("derives grounded Earth-scale orbital and gravity observables", () => {
+    const simulation = new HabitatSimulation("observable-world", { ...DEFAULT_PARAMS, seed: "observable-world" }, DEFAULT_ORIGIN);
+    const observables = planetObservables(simulation.state);
+    expect(observables.gravityEarth).toBeCloseTo(1, 6);
+    expect(observables.escapeVelocityKmS).toBeCloseTo(11.186, 3);
+    expect(observables.orbitalPeriodDays).toBeCloseTo(365.256, 2);
+    expect(simulation.state.surface.ph).toBeGreaterThanOrEqual(2);
+    expect(simulation.state.surface.ph).toBeLessThanOrEqual(12);
+  });
+
+  it("accounts for eccentricity and stellar spectrum in orbital forcing", () => {
+    const circular = stellarFlux({ ...DEFAULT_PARAMS, orbitalEccentricity: 0 });
+    const eccentric = stellarFlux({ ...DEFAULT_PARAMS, orbitalEccentricity: .6 });
+    const sun = habitableZoneFluxLimits(5780);
+    const coolStar = habitableZoneFluxLimits(3200);
+    expect(eccentric).toBeGreaterThan(circular);
+    expect(sun.inner).toBeCloseTo(1.107, 3);
+    expect(coolStar.inner).not.toBeCloseTo(sun.inner, 2);
+  });
+
+  it("adds gas as partial pressure without displacing existing inventory", () => {
+    const simulation = new HabitatSimulation("ledger-world", { ...DEFAULT_PARAMS, seed: "ledger-world" }, DEFAULT_ORIGIN);
+    const before = atmospherePartialPressures(simulation.state.atmosphere, simulation.state.atmospherePressureBar);
+    applyAtmosphereFlux(simulation.state, { co2: .2 });
+    const after = atmospherePartialPressures(simulation.state.atmosphere, simulation.state.atmospherePressureBar);
+    expect(after.n2).toBeCloseTo(before.n2, 8);
+    expect(after.co2).toBeCloseTo(before.co2 + .2, 8);
+    expect(simulation.state.atmospherePressureBar).toBeCloseTo(1.2, 8);
   });
 
   it("replays identical seed, parameters, and interventions deterministically", () => {
@@ -95,6 +125,20 @@ describe("HabitatSimulation", () => {
     expect(summary.state.foodWeb.some((link) => link.sourceId === "predator" && link.targetId === "producer")).toBe(true);
     expect(["herbivore", "carnivore", "omnivore", "parasite"]).toContain(evolvedPredator?.trophicRole);
     expect(evolvedPredator?.preyIds).toContain("producer");
+    expect(evolvedPredator?.diet.producers).toBeGreaterThan(0);
+  });
+
+  it("separates oxygenic production from generic photosynthesis", () => {
+    const simulation = new HabitatSimulation("oxygen-world", { ...DEFAULT_PARAMS, seed: "oxygen-world" }, DEFAULT_ORIGIN);
+    const phototroph = createSeededLineage(simulation.state, makeRandom("anoxygenic"), "microbial");
+    phototroph.metabolism = "phototroph";
+    phototroph.traits.photosynthesis = .6;
+    phototroph.population = 1_000_000;
+    phototroph.biomass = 2;
+    simulation.state.lineages.push(phototroph);
+    expect(planetObservables(simulation.state).oxygenicProduction).toBe(0);
+    phototroph.traits.photosynthesis = .9;
+    expect(planetObservables(simulation.state).oxygenicProduction).toBeGreaterThan(0);
   });
 
   it("exports and safely restores a bounded experiment", () => {

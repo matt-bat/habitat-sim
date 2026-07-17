@@ -1,6 +1,6 @@
 import { STRUCTURE_INFO } from "./constants";
 import { clamp, pickWeighted, vary } from "./random";
-import { habitabilityScore, normalizeAtmosphere, prebioticReadiness } from "./planet";
+import { applyAtmosphereFlux, habitabilityScore, prebioticReadiness } from "./planet";
 import type {
   ElementalBasis,
   FoodWebLink,
@@ -212,7 +212,8 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
     if (readiness > threshold) {
       state.chemistry.protocells = clamp(state.chemistry.protocells + (readiness - threshold) * 0.0015 * dt, 0, 1);
       const survivalBoost = state.origin.theory === "lithopanspermia" ? state.origin.survivalFraction * state.origin.exogenousDose : 0;
-      const chance = Math.pow(readiness, 3.5) * (1.05 - state.params.originDifficulty) * 0.0021 * dt + survivalBoost * 0.0004 * dt;
+      const opportunityRate = Math.pow(readiness, 3.5) * (1.05 - state.params.originDifficulty) * 0.0021 + survivalBoost * 0.0004;
+      const chance = 1 - Math.exp(-opportunityRate * dt);
       if (random() < chance) {
         const lineage = createSeededLineage(state, random, "origin");
         state.lineages.push(lineage);
@@ -226,7 +227,7 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
   }
 
   const links: FoodWebLink[] = [];
-  let detritus = state.extinctionCount * 0.04 + state.lineages.reduce((sum, lineage) => sum + lineage.biomass * 0.004, 0);
+  let detritus = state.detritusBiomass + state.lineages.reduce((sum, lineage) => sum + lineage.biomass * 0.004 * dt, 0);
   for (const lineage of state.lineages) {
     lineage.diet = { light: 0, minerals: 0, producers: 0, prey: 0, detritus: 0 };
     lineage.preyIds = [];
@@ -279,7 +280,8 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
     const consumed = Math.min(prey.population * 0.08, consumer.population * attack * 0.015 * dt);
     prey.population = Math.max(0, prey.population - consumed);
     consumer.population += consumed * 0.035;
-    consumer.diet.prey += consumed;
+    if (prey.trophicRole === "producer" || prey.metabolism === "phototroph") consumer.diet.producers += consumed;
+    else consumer.diet.prey += consumed;
     consumer.preyIds.push(prey.id);
     links.push({ sourceId: consumer.id, targetId: prey.id, relation: consumer.traits.parasitism > 0.62 ? "parasitism" : prey.trophicRole === "producer" ? "grazing" : "predation", energyFlow: consumed });
   }
@@ -319,13 +321,21 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
     }
   }
 
-  const photosyntheticBiomass = state.lineages.reduce((sum, lineage) => sum + lineage.biomass * lineage.traits.photosynthesis, 0);
+  state.detritusBiomass = Math.max(0, detritus);
+  const oxygenicBiomass = state.lineages.reduce((sum, lineage) => {
+    const oxygenic = (lineage.metabolism === "phototroph" || lineage.metabolism === "mixotroph")
+      && (lineage.structures.includes("chloroplast") || lineage.traits.photosynthesis > 0.72);
+    return sum + (oxygenic ? lineage.biomass * lineage.traits.photosynthesis : 0);
+  }, 0);
   const respiratoryBiomass = state.lineages.reduce((sum, lineage) => sum + lineage.biomass * lineage.traits.oxygenUse, 0);
-  const previousOxygen = state.atmosphere.o2;
-  state.atmosphere.o2 = clamp(state.atmosphere.o2 + photosyntheticBiomass * 0.000018 * dt - respiratoryBiomass * 0.000005 * dt - state.interior.volcanism * 0.000002 * dt);
-  Object.assign(state.atmosphere, normalizeAtmosphere(state.atmosphere));
-  if (previousOxygen < 0.02 && state.atmosphere.o2 >= 0.02) {
-    events.push({ kind: "planet", title: "Persistent atmospheric oxygen", summary: "Biological production began to outrun modeled oxygen sinks.", detail: "This transition changes metabolic opportunity while also stressing oxygen-intolerant lineages.", causes: [`Photosynthetic biomass ${photosyntheticBiomass.toFixed(2)}`, `Volcanism ${state.interior.volcanism.toFixed(2)}`], effects: { oxygen: { before: previousOxygen * 100, after: state.atmosphere.o2 * 100, unit: "%" } }, affectedLineageIds: state.lineages.filter((lineage) => lineage.traits.photosynthesis > 0.4).map((lineage) => lineage.id), confidence: "coarse", modelNote: "Real planetary oxygenation depends on many geological sinks and feedbacks not resolved here." });
+  const previousOxygen = state.atmosphere.o2 * state.atmospherePressureBar;
+  const burialEfficiency = clamp(0.05 + state.surface.nutrients * 0.08);
+  const productionBar = oxygenicBiomass * burialEfficiency * 0.000018 * dt;
+  const sinkBar = (respiratoryBiomass * 0.000005 + state.interior.volcanism * 0.000002 + state.atmosphere.ch4 * 0.000004) * dt;
+  applyAtmosphereFlux(state, { o2: productionBar - sinkBar });
+  const currentOxygen = state.atmosphere.o2 * state.atmospherePressureBar;
+  if (previousOxygen < 0.02 && currentOxygen >= 0.02) {
+    events.push({ kind: "planet", title: "Persistent atmospheric oxygen", summary: "Oxygenic production and burial began to outrun modeled redox sinks.", detail: "This transition changes metabolic opportunity while also stressing oxygen-intolerant lineages.", causes: [`Oxygenic biomass ${oxygenicBiomass.toFixed(2)}`, `Burial efficiency index ${burialEfficiency.toFixed(2)}`, `Modeled sinks ${sinkBar.toExponential(2)} bar`], effects: { oxygenPartialPressure: { before: previousOxygen, after: currentOxygen, unit: "bar" } }, affectedLineageIds: state.lineages.filter((lineage) => lineage.traits.photosynthesis > 0.72).map((lineage) => lineage.id), confidence: "coarse", modelNote: "The budget includes burial, respiration, reduced volcanic gases, and methane as aggregate proxies; photochemistry and oxidative weathering remain omitted." });
   }
   state.foodWeb = links.sort((a, b) => b.energyFlow - a.energyFlow).slice(0, 80);
   return events;

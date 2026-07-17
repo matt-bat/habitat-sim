@@ -11,7 +11,8 @@ The project is a comparative explanatory model, not a first-principles geophysic
 ## Production Capabilities
 
 - Seeded deterministic planet experiments
-- Star, orbit, planetary composition, core, dynamo, volcanism, tectonics, atmosphere, water, radiation, and nutrient state
+- Star effective temperature, eccentric orbit, spectral habitable-zone limits, gravity, escape velocity, orbital period, planetary composition, core, volcanism, tectonics, atmosphere, water, radiation, and nutrient state
+- Partial-pressure atmospheric ledger, real-scale pH proxy, oxygen sources/sinks, persistent detritus, and ranked causal bottlenecks
 - Carbon, hydrogen, nitrogen, oxygen, phosphorus, sulfur, iron, organics, amino-acid-like, lipid-like, nucleotide-like, polymer, and protocell reservoirs
 - Wet-dry, hydrothermal, atmospheric-energy, exogenous-organic, lithopanspermia, and custom origin protocols
 - Asteroid, comet, microbial, spore, flare, quiet-star, volcanic, nutrient, custom, and sterilizing interventions
@@ -51,6 +52,7 @@ npx tsc --noEmit
 npm test
 npm run build
 npm run test:browser
+npm run screenshots -- artifacts/ui
 ```
 
 `npm run test:browser` builds and previews the app on port `4174`, then runs desktop and mobile Chromium flows. Browser binaries may require a separate Playwright install on a new machine.
@@ -83,6 +85,7 @@ See [local operations](./docs/operations.md) for scope, retention, recovery obje
 ## Known Limits
 
 - Global reservoirs compress geography, seasons, circulation, and local refugia.
+- Climate, atmospheric escape, pH, tidal state, and oxygenation remain comparative aggregate proxies; inspect `docs/science-model.md` before interpreting output.
 - Population aggregates stand in for individuals and literal genomes.
 - Structure names describe functional analogues; alien morphology is not predicted.
 - Origin probabilities are model assumptions around unresolved science.
@@ -105,6 +108,7 @@ Security reports should follow [SECURITY.md](./SECURITY.md). Contributions shoul
 - [Science and uncertainty](./docs/science-model.md)
 - [Operations](./docs/operations.md)
 - [Interface quality gate](./docs/ui-quality.md)
+- [Observatory screenshot audit](./docs/ui-audit/2026-07-17.md)
 - [Validation and regression map](./docs/validation.md)
 - [Skill application and policy audit](./docs/skill-application.md)
 - [User instruction tracker](./user-instructions.md)

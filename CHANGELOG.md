@@ -2,6 +2,20 @@
 
 All notable changes to Habitat Sim are documented here.
 
+## Unreleased
+
+### Added
+
+- Scientific observatory with temperature-dependent habitable-zone limits, orbital period, gravity, escape velocity, greenhouse delta, pH, retention, stability, and redox readouts.
+- Ranked causal bottlenecks, origin-pathway context fit, sterile-biosphere intelligence, and a pre-lineage prerequisite graph.
+- Custom material-cargo composer and deterministic twelve-view screenshot automation.
+
+### Corrected
+
+- Atmospheric sources and sinks now operate on partial pressures instead of silently displacing normalized gas fractions.
+- Abiogenesis uses an opportunity-rate hazard; oxygen requires oxygenic producers and subtracts aggregate sinks.
+- Detritus persists without being recreated from cumulative extinction count, and grazing populates producer diet history.
+
 ## 1.0.0 - 2026-07-17
 
 ### Added

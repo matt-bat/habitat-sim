@@ -35,18 +35,26 @@ const NAV_ITEMS: Array<{ id: ViewId; label: string; icon: typeof Home }> = [
 ];
 
 const PARAM_FIELDS: Array<{ key: keyof PlanetParams; label: string; min: number; max: number; step: number; unit?: string }> = [
+  { key: "starMassSolar", label: "Stellar mass", min: .1, max: 2, step: .01, unit: "M⊙" },
   { key: "starLuminositySolar", label: "Stellar luminosity", min: .003, max: 3, step: .01, unit: "L⊙" },
+  { key: "starTemperatureK", label: "Stellar temperature", min: 2600, max: 7200, step: 10, unit: "K" },
   { key: "starActivity", label: "Stellar activity", min: 0, max: 1, step: .01 },
   { key: "orbitalDistanceAu", label: "Orbital distance", min: .03, max: 3, step: .01, unit: "AU" },
+  { key: "orbitalEccentricity", label: "Orbital eccentricity", min: 0, max: .8, step: .001 },
   { key: "planetMassEarth", label: "Planet mass", min: .2, max: 5, step: .05, unit: "M⊕" },
   { key: "planetRadiusEarth", label: "Planet radius", min: .5, max: 2, step: .02, unit: "R⊕" },
+  { key: "rotationHours", label: "Rotation period", min: 4, max: 1000, step: 1, unit: "h" },
+  { key: "axialTiltDeg", label: "Axial tilt", min: 0, max: 90, step: .1, unit: "°" },
   { key: "albedo", label: "Albedo", min: .05, max: .75, step: .01 },
   { key: "waterInventory", label: "Water inventory", min: 0, max: 1.5, step: .01 },
   { key: "landFraction", label: "Land fraction", min: 0, max: .95, step: .01 },
   { key: "coreFraction", label: "Core fraction", min: .05, max: .7, step: .01 },
+  { key: "mantleFraction", label: "Mantle fraction", min: .2, max: .9, step: .01 },
   { key: "initialHeat", label: "Initial heat", min: 0, max: 1, step: .01 },
   { key: "radionuclides", label: "Radiogenic heat", min: 0, max: 1, step: .01 },
   { key: "tectonicMobility", label: "Tectonic mobility", min: 0, max: 1, step: .01 },
+  { key: "impactRate", label: "Background impact rate", min: 0, max: 1, step: .01 },
+  { key: "atmospherePressureBar", label: "Surface pressure", min: .01, max: 20, step: .01, unit: "bar" },
   { key: "mutationRate", label: "Mutation pressure", min: .02, max: 1, step: .01 },
   { key: "originDifficulty", label: "Origin difficulty", min: .05, max: 1, step: .01 }
 ];
@@ -63,6 +71,7 @@ function loadLibrary(): SavedExperiment[] {
 export function App() {
   const initialSeed = useRef(makeSeed());
   const simulationRef = useRef(new HabitatSimulation(initialSeed.current, { ...DEFAULT_PARAMS, seed: initialSeed.current }, DEFAULT_ORIGIN));
+  const workspaceBodyRef = useRef<HTMLDivElement>(null);
   const [summary, setSummary] = useState<SimulationSummary>(() => simulationRef.current.getSummary());
   const [view, setView] = useState<ViewId>("planet");
   const [playing, setPlaying] = useState(false);
@@ -102,6 +111,11 @@ export function App() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(library)); }
     catch { notify("Local storage is unavailable; export important experiments."); }
   }, [library, notify]);
+
+  useEffect(() => {
+    workspaceBodyRef.current?.scrollTo({ top: 0, left: 0 });
+    window.scrollTo({ top: 0, left: 0 });
+  }, [view]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -176,11 +190,11 @@ export function App() {
 
     <section className="workspace">
       <header className="workspace-head">
-        <div><span className="eyebrow">Habitat Sim / {view}</span><h1>{summary.diagnostic.title}</h1></div>
+        <div><span className="eyebrow"><i className="live-beacon"/> Habitat Sim / {view} / deterministic observatory</span><h1>{summary.diagnostic.title}</h1></div>
         <div className="head-stats"><Metric label="Age" value={formatAge(summary.ageMyr)} /><Metric label="Habitability" value={`${(summary.habitabilityScore * 100).toFixed(0)}%`} tone={summary.habitabilityScore > .55 ? "good" : "warn"} /><Metric label="Biosphere" value={summary.biodiversity ? `${summary.biodiversity} lineages` : "sterile"} /></div>
       </header>
 
-      <div className="workspace-body">
+      <div className="workspace-body" ref={workspaceBodyRef}>
         {view === "planet" && <PlanetView summary={summary} />}
         {view === "origins" && <OriginsView summary={summary} onOriginChange={updateOrigin} />}
         {view === "biosphere" && <BiosphereView summary={summary} onSelectLineage={(lineage) => { setSelectedLineage(lineage); setView("lineages"); }} />}
@@ -202,7 +216,8 @@ export function App() {
 const INTERVENTION_OPTIONS: Array<[InterventionType, string]> = [
   ["organic-asteroid", "Carbonaceous asteroid"], ["ice-comet", "Ice-rich comet"], ["nutrient-deposition", "Nutrient deposition"],
   ["volcanic-pulse", "Volcanic pulse"], ["stellar-flare", "Stellar flare"], ["quiet-star", "Quiet-star interval"],
-  ["microbial-seed", "Speculative microbial seed"], ["fungal-spores", "Speculative fungal spores"], ["sterilizing-impact", "Sterilizing impact"]
+  ["microbial-seed", "Speculative microbial seed"], ["fungal-spores", "Speculative fungal spores"], ["sterilizing-impact", "Sterilizing impact"],
+  ["custom", "Custom material cargo"]
 ];
 
 function LabView({ summary, library, onReset, onIntervene, onSave, onLoad, onDelete, onExport, onImport }: {
@@ -222,6 +237,7 @@ function LabView({ summary, library, onReset, onIntervene, onSave, onLoad, onDel
   const [interventionType, setInterventionType] = useState<InterventionType>("organic-asteroid");
   const [magnitude, setMagnitude] = useState(.65);
   const [delay, setDelay] = useState(0);
+  const [cargo, setCargo] = useState({ water: 0, organics: .4, aminoAcids: .2, nucleotides: .1, carbon: .2, phosphorus: .1, iron: .1 });
 
   useEffect(() => { setSeed(summary.seed); setParams(structuredClone(summary.state.params)); }, [summary.seed, summary.state.params]);
 
@@ -249,7 +265,8 @@ function LabView({ summary, library, onReset, onIntervene, onSave, onLoad, onDel
       <label className="select-field"><span>Intervention</span><select value={interventionType} onChange={(event) => setInterventionType(event.target.value as InterventionType)}>{INTERVENTION_OPTIONS.map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
       <label className="range-field"><span>Magnitude<strong>{Math.round(magnitude * 100)}%</strong></span><input type="range" min=".05" max="1" step=".01" value={magnitude} onChange={(event) => setMagnitude(Number(event.target.value))} /></label>
       <label className="range-field"><span>Delay from current age<strong>{delay.toFixed(0)} Myr</strong></span><input type="range" min="0" max="1000" step="10" value={delay} onChange={(event) => setDelay(Number(event.target.value))} /></label>
-      <button className="accent-button wide" onClick={() => { const intervention = defaultIntervention(interventionType, summary.ageMyr + delay, summary.state.interventions.length + 1); intervention.magnitude = magnitude; onIntervene(intervention); }}><Sparkles/> {delay ? "Schedule intervention" : "Apply intervention now"}</button>
+      {interventionType === "custom" && <div className="cargo-grid">{Object.entries(cargo).map(([key, value]) => <label key={key}><span>{key.replaceAll(/([A-Z])/g, " $1")}</span><input aria-label={`Cargo ${key}`} type="number" min="0" max="1" step="0.05" value={value} onChange={(event) => setCargo((current) => ({...current, [key]: Math.max(0, Math.min(1, Number(event.target.value) || 0))}))}/></label>)}</div>}
+      <button className="accent-button wide" onClick={() => { const intervention = defaultIntervention(interventionType, summary.ageMyr + delay, summary.state.interventions.length + 1); intervention.magnitude = magnitude; if (interventionType === "custom") intervention.cargo = cargo; onIntervene(intervention); }}><Sparkles/> {delay ? "Schedule intervention" : "Apply intervention now"}</button>
       <p className="model-note">Biological cargo faces survival gates. Fungal spores require an oxygenated, wet, food-bearing biosphere; their arrival is explicitly speculative.</p>
 
       <PanelTitle eyebrow="Experiment library" title="Local records" />

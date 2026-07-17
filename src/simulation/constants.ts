@@ -14,8 +14,10 @@ export const DEFAULT_PARAMS: PlanetParams = {
   seed: "",
   starMassSolar: 1,
   starLuminositySolar: 1,
+  starTemperatureK: 5778,
   starActivity: 0.28,
   orbitalDistanceAu: 1,
+  orbitalEccentricity: 0.0167,
   planetMassEarth: 1,
   planetRadiusEarth: 1,
   rotationHours: 24,
@@ -52,7 +54,7 @@ export const PLANET_PRESETS: Record<string, { label: string; description: string
   arid: { label: "Arid mineral world", description: "Sparse water, broad land, and intense surface cycling.", params: { waterInventory: 0.2, landFraction: 0.78, albedo: 0.36, atmospherePressureBar: 0.62 }, origin: { theory: "pond", wetDryCycling: 0.92 } },
   reducing: { label: "Reducing atmosphere", description: "Hydrogen, methane, and ammonia favor atmospheric chemistry.", params: { atmospherePressureBar: 1.35, atmosphere: { n2: 0.45, co2: 0.08, h2o: 0.1, ch4: 0.16, o2: 0.001, h2: 0.13, nh3: 0.06, so2: 0.01 } }, origin: { theory: "atmospheric", energy: 0.86 } },
   stagnant: { label: "Stagnant-lid world", description: "Weak recycling and a slowly fading dynamo.", params: { tectonicMobility: 0.08, initialHeat: 0.58, radionuclides: 0.34, coreFraction: 0.24, starActivity: 0.38 } },
-  mdwarf: { label: "Active red-star world", description: "Close orbit with strong flare exposure and tidal rotation.", params: { starMassSolar: 0.34, starLuminositySolar: 0.04, starActivity: 0.9, orbitalDistanceAu: 0.2, rotationHours: 240, atmospherePressureBar: 1.8, coreFraction: 0.38 } }
+  mdwarf: { label: "Active red-star world", description: "Close orbit with strong flare exposure and tidal rotation.", params: { starMassSolar: 0.34, starLuminositySolar: 0.04, starTemperatureK: 3400, starActivity: 0.9, orbitalDistanceAu: 0.2, orbitalEccentricity: 0.04, rotationHours: 240, atmospherePressureBar: 1.8, coreFraction: 0.38 } }
 };
 
 export const ORIGIN_PRESETS: Record<string, OriginConfig & { label: string; description: string; evidence: "grounded" | "coarse" | "speculative" }> = {
@@ -83,7 +85,7 @@ export const STRUCTURE_INFO: Record<StructureId, { label: string; capability: st
 };
 
 export const PARAM_BOUNDS: Partial<Record<keyof PlanetParams, [number, number]>> = {
-  starMassSolar: [0.1, 2], starLuminositySolar: [0.003, 8], starActivity: [0, 1], orbitalDistanceAu: [0.03, 4],
+  starMassSolar: [0.1, 2], starLuminositySolar: [0.003, 8], starTemperatureK: [2600, 7200], starActivity: [0, 1], orbitalDistanceAu: [0.03, 4], orbitalEccentricity: [0, 0.8],
   planetMassEarth: [0.2, 5], planetRadiusEarth: [0.5, 2], rotationHours: [4, 1000], axialTiltDeg: [0, 90], albedo: [0.05, 0.75],
   waterInventory: [0, 1.5], landFraction: [0, 0.95], coreFraction: [0.05, 0.7], mantleFraction: [0.2, 0.9], initialHeat: [0, 1],
   radionuclides: [0, 1], tectonicMobility: [0, 1], impactRate: [0, 1], atmospherePressureBar: [0.01, 20], mutationRate: [0.02, 1], originDifficulty: [0.05, 1]

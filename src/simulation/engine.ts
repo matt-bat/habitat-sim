@@ -5,11 +5,13 @@ import { clamp, hashString, makeRandom } from "./random";
 import {
   habitableZoneStatus,
   habitabilityScore,
+  limitingFactors,
   makeChemistry,
   makeInterior,
   makeSurface,
   normalizeAtmosphere,
   normalizeParams,
+  planetObservables,
   prebioticReadiness,
   stellarFlux,
   updatePlanet
@@ -146,7 +148,8 @@ export class HabitatSimulation {
       snapshots: [],
       appliedInterventionCount: 0,
       failedOriginAttempts: 0,
-      extinctionCount: 0
+      extinctionCount: 0,
+      detritusBiomass: 0
     };
     this.addEvent({
       kind: "planet",
@@ -245,7 +248,7 @@ export class HabitatSimulation {
       state,
       habitabilityScore: habitabilityScore(state),
       habitableZoneFlux: flux,
-      habitableZoneStatus: habitableZoneStatus(flux),
+      habitableZoneStatus: habitableZoneStatus(flux, state.params.starTemperatureK),
       prebioticReadiness: prebioticReadiness(state),
       biosphereStatus: diagnostic.title,
       dominantStage: stage,
@@ -253,6 +256,8 @@ export class HabitatSimulation {
       totalBiomass: biomass,
       biodiversity: state.lineages.length,
       oxygenPercent: state.atmosphere.o2 * 100,
+      observables: planetObservables(state),
+      limitingFactors: limitingFactors(state),
       diagnostic
     };
   }
@@ -290,7 +295,8 @@ export class HabitatSimulation {
       snapshots: structuredClone(stateInput.snapshots?.slice(0, 120) ?? []),
       appliedInterventionCount: safeCounter(stateInput.appliedInterventionCount),
       failedOriginAttempts: safeCounter(stateInput.failedOriginAttempts),
-      extinctionCount: safeCounter(stateInput.extinctionCount)
+      extinctionCount: safeCounter(stateInput.extinctionCount),
+      detritusBiomass: Number.isFinite(Number(stateInput.detritusBiomass)) ? Math.max(0, Number(stateInput.detritusBiomass)) : 0
     };
     simulation.random = makeRandom(`${simulation.state.params.seed}:resume:${safeAge}:${simulation.state.timeline.length}`);
     simulation.eventSequence = simulation.state.timeline.length;

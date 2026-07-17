@@ -12,10 +12,12 @@ export function PlanetVisual({ summary, compact = false }: { summary: Simulation
   const oceanColor = surface.temperatureC < 0 ? "#a5d9e8" : `hsl(${205 - heat * 28} 62% ${28 + water * 12}%)`;
   const landColor = life > 0.08 ? `hsl(${95 + life * 20} 38% ${25 + life * 12}%)` : `hsl(${34 - heat * 12} 32% ${32 + heat * 10}%)`;
   const radiation = clamp(surface.radiation);
+  const stellarHue = summary.state.params.starTemperatureK < 3900 ? "#ff906a" : summary.state.params.starTemperatureK > 6200 ? "#b8d8ff" : "#ffe6a3";
 
   return (
     <div className={compact ? "planet-visual compact" : "planet-visual"} aria-label="Planetary system visualization">
-      <div className="star-orbit" style={{ opacity: 0.5 + clamp(summary.habitableZoneFlux / 2) * 0.4 }} />
+      <div className="star-orbit" style={{ opacity: 0.5 + clamp(summary.habitableZoneFlux / 2) * 0.4, background: stellarHue, color: stellarHue }} />
+      <div className="scan-reticle"><i/><i/><i/></div>
       <svg viewBox="0 0 520 520" role="img" aria-label={`Planet at ${surface.temperatureC.toFixed(1)} degrees Celsius with ${(water * 100).toFixed(0)} percent modeled ocean coverage`}>
         <defs>
           <radialGradient id="spaceGlow"><stop offset="0" stopColor="#153c35" stopOpacity=".34"/><stop offset="1" stopColor="#07110f" stopOpacity="0"/></radialGradient>
@@ -24,6 +26,11 @@ export function PlanetVisual({ summary, compact = false }: { summary: Simulation
           <filter id="blur"><feGaussianBlur stdDeviation="8"/></filter>
         </defs>
         <circle cx="260" cy="260" r="240" fill="url(#spaceGlow)" />
+        <g className="orbital-rings" fill="none">
+          <ellipse cx="260" cy="260" rx="236" ry="102" stroke="#6edbc6" strokeOpacity=".12" strokeDasharray="2 8" transform={`rotate(${summary.state.params.axialTiltDeg} 260 260)`}/>
+          <circle cx="260" cy="260" r="214" stroke="#bc9bea" strokeOpacity=".1" strokeDasharray="34 12"/>
+          <path d="M260 38 V78 M260 442 V482 M38 260 H78 M442 260 H482" stroke="#bceade" strokeOpacity=".26"/>
+        </g>
         <circle cx="260" cy="260" r={177 + atmosphereOpacity * 18} fill="none" stroke={radiation > .5 ? "#ff8f69" : "#6ddbc1"} strokeOpacity={atmosphereOpacity} strokeWidth={10 + atmosphereOpacity * 18} filter="url(#blur)" />
         <circle cx="260" cy="260" r="160" fill="#1e2a2a" stroke="#9ad9cc" strokeOpacity=".28" strokeWidth="2" />
         <g clipPath="url(#planetClip)">
@@ -44,8 +51,14 @@ export function PlanetVisual({ summary, compact = false }: { summary: Simulation
           <path d="M260 260 L277 417" stroke="#f9d3a5" strokeOpacity=".3" />
         </g>
         <circle cx="260" cy="260" r="158" fill="none" stroke="#d5fff5" strokeOpacity=".22" strokeWidth="2" />
+        <g className="telemetry-labels" fill="#8ba9a0" fontSize="9" letterSpacing="1.1">
+          <text x="28" y="74">ATMOSPHERIC COLUMN</text><text x="28" y="88" fill="#d8f5ed">{summary.state.atmospherePressureBar.toFixed(3)} BAR</text>
+          <text x="364" y="442">ESCAPE VELOCITY</text><text x="364" y="456" fill="#d8f5ed">{summary.observables.escapeVelocityKmS.toFixed(2)} KM/S</text>
+          <text x="366" y="72">STELLAR SPECTRUM</text><text x="366" y="86" fill={stellarHue}>{summary.state.params.starTemperatureK.toFixed(0)} K</text>
+          <text x="28" y="442">LIQUID SOLVENT</text><text x="28" y="456" fill="#79cfff">{(surface.liquidWater * 100).toFixed(1)} INDEX</text>
+        </g>
       </svg>
-      <div className="planet-caption"><span>Surface</span><strong>{surface.temperatureC.toFixed(1)}°C</strong><span>Core</span><strong>{Math.round(interior.coreActivity * 100)}%</strong></div>
+      <div className="planet-caption"><span>Surface</span><strong>{surface.temperatureC.toFixed(1)}°C</strong><span>Core activity</span><strong>{interior.coreActivity.toFixed(2)}</strong><span>Radiation</span><strong>{surface.radiation.toFixed(2)}</strong></div>
     </div>
   );
 }

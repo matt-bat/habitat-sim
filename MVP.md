@@ -2,7 +2,7 @@
 
 Status: locked for the first implementation slice  
 Date: 2026-07-17  
-Execution scope: local prototype only
+Execution scope: implemented browser release; public source repository
 
 ## Product Goal
 
@@ -23,9 +23,9 @@ A user can create a seeded planet, run or pause geological time, introduce a see
 ### 1. Deterministic experiment setup
 
 - Stable text seed plus normalized parameters.
-- Star context: spectral class proxy, luminosity, activity, system age, and orbital distance.
+- Star context: mass, effective temperature, luminosity, activity, orbital distance, and eccentricity.
 - Planet: mass, radius, gravity, albedo, axial tilt, rotation, water inventory, crust/mantle/core fractions, radionuclide inventory, initial heat, and impact rate.
-- Atmosphere: pressure and editable gas fractions for nitrogen, carbon dioxide, water vapor, methane, oxygen, hydrogen, ammonia, and sulfur gases.
+- Atmosphere: pressure and editable initial gas fractions for nitrogen, carbon dioxide, water vapor, methane, oxygen, hydrogen, ammonia, and sulfur gases; runtime transfers use partial-pressure inventories.
 - Presets: Earth-like, ocean world, arid world, reducing atmosphere, stagnant-lid world, and high-activity red-dwarf world.
 - A habitability-zone indicator based on incident stellar flux, shown as context rather than proof of habitability.
 
@@ -113,7 +113,7 @@ A user can create a seeded planet, run or pause geological time, introduce a see
 - Carbon-water life receives the deepest built-in model because it has the strongest empirical basis; custom elemental weights remain exploratory.
 - Rates are calibrated for inspectable comparative runs, not claimed as universal physical constants.
 - Regional geography, literal genomes, exact anatomy, and three-dimensional circulation are deferred.
-- Execution remains local; deployment and public release require a separate explicit request.
+- The browser application is implemented and its source is published; hosted deployment remains outside this contract.
 - Unit, build, and browser execution ownership remains an open verification question, but it does not change the implementation contract.
 
 ## Open Questions

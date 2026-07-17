@@ -22,7 +22,7 @@ Experiment definition
 - Identical seed, normalized parameters, and intervention schedule produce identical results.
 - Every random draw comes from the simulation's seeded generator.
 - State fields stay finite and within documented bounds.
-- Atmosphere fractions are normalized before use.
+- Initial atmosphere fractions are normalized before use; subsequent sources and sinks are applied to partial-pressure inventories and total pressure is recomputed.
 - Population counts and reservoir amounts never become negative.
 - Structures require prerequisites and impose costs.
 - Interventions append immutable ledger entries with applied effects.
@@ -47,7 +47,7 @@ Experiment definition
 1. Apply interventions due at or before the current age.
 2. Update stellar forcing and radiation.
 3. Update interior heat, core activity, dynamo, volcanism, and tectonics.
-4. Exchange atmospheric and surface reservoirs.
+4. Exchange atmospheric partial pressures and surface reservoirs without silently displacing unchanged gases.
 5. Update temperature, water phase balance, weathering, and nutrient availability.
 6. Run prebiotic chemistry opportunities.
 7. Update population energy, growth, mutation, selection, interactions, and extinction.

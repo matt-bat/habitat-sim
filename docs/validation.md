@@ -38,6 +38,18 @@
 - Full isolated restore: pass; lockfile, engine, and license hashes matched, followed by clean install, all unit/integration tests, and production build.
 - GitHub Actions: public-repository quality and browser jobs passed; action dependencies were then advanced to their current version 7 releases to remove the Node.js runtime deprecation warning.
 
+### Science and Observatory Iteration
+
+- `npm run check`: pass; strict TypeScript validation, 12 unit/integration tests, and optimized production build.
+- `npm run test:browser`: pass; 8 Chromium flows across desktop and mobile, including custom material cargo and the pre-lineage prerequisite graph.
+- `npm run screenshots -- /tmp/habitat-ui-release-2`: pass; all six roots captured at desktop and mobile profiles after a fixed-clock, reduced-motion paint settle.
+- Weighted screenshot audit: 91.7/100, up from 71.4; evidence and remaining risks are in `docs/ui-audit/2026-07-17.md`.
+- `npm audit --audit-level=high`: zero known vulnerabilities.
+- Production bundle: 235.46 kilobytes JavaScript and 28.98 kilobytes CSS before compression.
+- Post-change archive: `habitat-sim-20260717T162446Z.tar.gz`; SHA-256 and tar verification passed.
+- Isolated restore: pass; clean install, 12 tests, strict TypeScript, and production build all passed from `/tmp/habitat-sim-restore-20260717T162446Z`.
+- Final documentation-complete archive: `habitat-sim-20260717T162717Z.tar.gz`; SHA-256 verification and restore to `/tmp/habitat-sim-restore-20260717T162717Z` passed after closeout artifacts were added.
+
 ## Remediated Findings
 
 - Non-finite planet parameters incorrectly fell to lower bounds instead of documented defaults.

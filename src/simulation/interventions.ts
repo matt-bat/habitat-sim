@@ -1,4 +1,5 @@
 import { clamp } from "./random";
+import { applyAtmosphereFlux, atmospherePartialPressures } from "./planet";
 import { createSeededLineage, type EventDraft } from "./life";
 import type { ElementId, Intervention, SimulationState } from "./types";
 
@@ -46,7 +47,7 @@ export function applyIntervention(state: SimulationState, intervention: Interven
   } else if (intervention.type === "fungal-spores") {
     confidence = "speculative";
     const hasFood = state.lineages.some((lineage) => lineage.biomass > 0.001) || state.chemistry.simpleOrganics > 0.7;
-    const viableEnvironment = state.atmosphere.o2 > 0.07 && state.surface.liquidWater > 0.3 && state.surface.temperatureC > -5 && state.surface.temperatureC < 48 && hasFood;
+    const viableEnvironment = state.atmosphere.o2 * state.atmospherePressureBar > 0.07 && state.surface.liquidWater > 0.3 && state.surface.temperatureC > -5 && state.surface.temperatureC < 48 && hasFood;
     if (viableEnvironment && random() < clamp(intervention.cargo.spores || 0.15) * magnitude) {
       state.lineages.push(createSeededLineage(state, random, "spores"));
       detail = "A small introduced spore population established because oxygen, water, temperature, and organic food were already available.";
@@ -55,17 +56,18 @@ export function applyIntervention(state: SimulationState, intervention: Interven
     }
   } else if (intervention.type === "stellar-flare") {
     state.surface.radiation = clamp(state.surface.radiation + magnitude * 0.65);
-    state.atmospherePressureBar = clamp(state.atmospherePressureBar * (1 - magnitude * (1 - state.interior.magneticShield) * 0.08), 0.01, 20);
+    const partials = atmospherePartialPressures(state.atmosphere, state.atmospherePressureBar);
+    const escapeFraction = magnitude * 0.08 / Math.max(0.25, state.params.planetMassEarth / state.params.planetRadiusEarth ** 2);
+    applyAtmosphereFlux(state, Object.fromEntries(Object.entries(partials).map(([gas, pressure]) => [gas, -pressure * escapeFraction])));
     for (const lineage of state.lineages) lineage.population *= clamp(1 - magnitude * Math.max(0, state.surface.radiation - lineage.traits.radiationResistance) * 0.32);
-    detail = "A flare raised surface radiation, eroded weakly protected atmosphere, and selected for shielding, repair, or refugia.";
+    detail = "A flare raised surface radiation, drove gravity- and column-dependent atmospheric loss, and selected for shielding, repair, or refugia.";
   } else if (intervention.type === "quiet-star") {
     state.params.starActivity = clamp(state.params.starActivity * (1 - magnitude * 0.7));
     state.surface.radiation = clamp(state.surface.radiation * (1 - magnitude * 0.6));
     detail = "A sustained quiet interval reduced ionizing and particle radiation pressure on the atmosphere and biosphere.";
   } else if (intervention.type === "volcanic-pulse") {
     state.interior.volcanism = clamp(state.interior.volcanism + magnitude * 0.45);
-    state.atmosphere.co2 = clamp(state.atmosphere.co2 + magnitude * 0.08);
-    state.atmosphere.so2 = clamp(state.atmosphere.so2 + magnitude * 0.06);
+    applyAtmosphereFlux(state, { co2: magnitude * 0.08, so2: magnitude * 0.06 });
     state.surface.temperatureC += magnitude * 8;
     state.surface.nutrients = clamp(state.surface.nutrients + magnitude * 0.12);
     detail = "Volcanism supplied gases and nutrients while adding short-lived aerosols, heat, and environmental stress.";

@@ -41,8 +41,10 @@ export type PlanetParams = {
   seed: string;
   starMassSolar: number;
   starLuminositySolar: number;
+  starTemperatureK: number;
   starActivity: number;
   orbitalDistanceAu: number;
+  orbitalEccentricity: number;
   planetMassEarth: number;
   planetRadiusEarth: number;
   rotationHours: number;
@@ -219,6 +221,32 @@ export type SimulationState = {
   appliedInterventionCount: number;
   failedOriginAttempts: number;
   extinctionCount: number;
+  detritusBiomass: number;
+};
+
+export type LimitingFactor = {
+  id: "thermal" | "water" | "radiation" | "pressure" | "building-blocks" | "gradients" | "energy" | "nutrients";
+  label: string;
+  score: number;
+  detail: string;
+  counterfactual: string;
+  confidence: EvidenceClass;
+};
+
+export type PlanetObservables = {
+  gravityEarth: number;
+  escapeVelocityKmS: number;
+  orbitalPeriodDays: number;
+  equilibriumTemperatureC: number;
+  greenhouseDeltaC: number;
+  habitableZoneInnerFlux: number;
+  habitableZoneOuterFlux: number;
+  atmosphericRetentionIndex: number;
+  climateStabilityIndex: number;
+  redoxDisequilibriumIndex: number;
+  tidalLockingRisk: "low" | "moderate" | "high";
+  oxygenicProduction: number;
+  oxygenSinks: number;
 };
 
 export type SimulationSummary = {
@@ -235,6 +263,7 @@ export type SimulationSummary = {
   totalBiomass: number;
   biodiversity: number;
   oxygenPercent: number;
+  observables: PlanetObservables;
+  limitingFactors: LimitingFactor[];
   diagnostic: { title: string; detail: string };
 };
-
