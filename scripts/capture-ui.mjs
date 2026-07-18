@@ -38,12 +38,17 @@ async function measurements(page) {
   return page.evaluate(() => {
     const rootOverflow = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth;
     const selectors = [".workspace-body", ".wizard-shell", ".wizard-progress", ".wizard-stage", ".wizard-step-rail", ".wizard-content", ".impact-lens", ".wizard-footer", ".rail", ".transport"];
-    const panels = selectors.flatMap((selector) => [...document.querySelectorAll(selector)].map((element) => ({
-      selector,
-      horizontalOverflow: Math.max(0, element.scrollWidth - element.clientWidth),
-      verticalOverflow: Math.max(0, element.scrollHeight - element.clientHeight),
-      bounds: (() => { const box = element.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom }; })()
-    })));
+    const panels = selectors.flatMap((selector) => [...document.querySelectorAll(selector)].flatMap((element) => {
+      const style = getComputedStyle(element);
+      const box = element.getBoundingClientRect();
+      if (style.display === "none" || style.visibility === "hidden" || box.width <= 0 || box.height <= 0) return [];
+      return [{
+        selector,
+        horizontalOverflow: Math.max(0, element.scrollWidth - element.clientWidth),
+        verticalOverflow: Math.max(0, element.scrollHeight - element.clientHeight),
+        bounds: { x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom }
+      }];
+    }));
     const focused = document.activeElement instanceof HTMLElement ? (() => { const box = document.activeElement.getBoundingClientRect(); return { tag: document.activeElement.tagName, label: document.activeElement.getAttribute("aria-label") || document.activeElement.textContent?.trim().slice(0, 80), bounds: { x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom } }; })() : null;
     return { rootOverflow, panels, focused, viewport: { width: innerWidth, height: innerHeight }, scrollY: window.scrollY };
   });
@@ -56,6 +61,9 @@ async function writeCapture(page, profile, scene, depth) {
   const metrics = await measurements(page);
   captures.push({ profile: profile.name, viewport: profile.viewport, scene, depth, path, sha256: hash, reducedMotion: true, colorScheme: "dark", ...metrics });
   if (metrics.rootOverflow > 1) failures.push(`${profile.name}/${scene}/${depth}: root horizontal overflow ${metrics.rootOverflow}px`);
+  for (const panel of metrics.panels) {
+    if (panel.horizontalOverflow > 1) failures.push(`${profile.name}/${scene}/${depth}: ${panel.selector} horizontal overflow ${panel.horizontalOverflow}px`);
+  }
 }
 
 async function captureScene(page, profile, scene, { preserveScroll = false, depthSweep = true } = {}) {

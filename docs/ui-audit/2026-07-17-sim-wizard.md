@@ -29,6 +29,18 @@ The audit covers 44 canonical states:
 
 A corrected mobile-only sweep added 118 further captures after the final intrinsic-width fix. A second 118-capture mobile sweep then verified the final copy and exact `/habitat-sim/` Pages-form bundle. Effective inspected evidence: **688 full-state/depth screenshots**.
 
+## Public Pages Verification
+
+After deployment, the same 44-state matrix ran twice against `https://matt-bat.github.io/habitat-sim/`, adding 904 hosted captures. The second public sweep excluded only elements that computed to hidden, non-displayed, or zero-area boxes and promoted more than one pixel of horizontal overflow in every visible tracked panel to a hard failure. It passed all 452 captures with:
+
+- zero root or visible-panel overflow failures;
+- zero focused controls outside the viewport;
+- zero console or page errors;
+- all five profiles and all 44 canonical scenes complete;
+- public application shell and both hashed build assets returning HTTP 200.
+
+Total iterative interface evidence: **1,592 screenshots**.
+
 ## Iteration Findings
 
 | Finding | Severity | Change | Recheck |
@@ -56,6 +68,6 @@ A corrected mobile-only sweep added 118 further captures after the final intrins
 
 ## Result and Remaining Risk
 
-The interface passes the production visual gate. It is recognizably designed for planetary-life experimentation rather than adapted from a generic dashboard: the causal systems ribbon, cutaway world, orbit/climate instrumentation, reaction console, gate matrix, ecosystem topology, lineage energy ledger, adaptive Impact Lens, and causal launch review all reinforce the model.
+The deployed interface passes the production visual gate. It is recognizably designed for planetary-life experimentation rather than adapted from a generic dashboard: the causal systems ribbon, cutaway world, orbit/climate instrumentation, reaction console, gate matrix, ecosystem topology, lineage energy ledger, adaptive Impact Lens, and causal launch review all reinforce the model.
 
 Remaining risk is limited to dedicated assistive-technology sessions, browser engines beyond Chromium, extreme user font scaling, and very low-end GPU performance. No required view, state, action, or configured screen class is unreachable in the audited matrix.

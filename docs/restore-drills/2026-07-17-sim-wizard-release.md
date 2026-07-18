@@ -39,4 +39,4 @@ Before publication, restore this archive into a new directory. After publication
 
 ## Decision
 
-Pass. The archive independently reproduces the validated source, test results, root production build, and repository-subpath Pages build. Public deployment remains the only release gate not exercised by this drill.
+Pass. The archive independently reproduces the validated source, test results, root production build, and repository-subpath Pages build. The subsequent public deployment and live verification also passed; rollback remains this archive, a file-scoped Git revert, or the previous successful Pages artifact.

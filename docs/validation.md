@@ -76,7 +76,9 @@
 - Scenario/persistence gates: 19 immutable built-ins normalize without mutation; pre-life oxygen, origin taxonomy, multi-star forcing proxies, unsupported biochemistry, user-preset lifecycle, import conflicts, and bounded draft storage have direct tests.
 - Pages-equivalent local verification: the application shell and hashed JavaScript/CSS assets return HTTP 200 from `/habitat-sim/`; the final mobile matrix ran against that exact subpath build.
 - Recovery: the checksum-verified archive `habitat-sim-20260718T005119Z.tar.gz` restored into an isolated directory; clean `npm ci`, all 27 tests, strict TypeScript, root build, Pages build, and source-hash parity passed. See `docs/restore-drills/2026-07-17-sim-wizard-release.md`.
-- Public-host evidence is recorded after the deployed commit is verified.
+- GitHub Actions run `29626244946`: pass for quality, dependency audit, all 27 tests/build, all 20 browser workflows, Pages-form build, artifact upload, public deployment, and hosted shell/asset verification.
+- Public host: `https://matt-bat.github.io/habitat-sim/` returns HTTP 200; both generated JavaScript/CSS assets return HTTP 200.
+- Hosted interface: two complete five-profile, 44-state sweeps generated 904 public captures. The final 452-capture sweep enforced root and every visible tracked-panel overflow as hard failures and completed with none; total local/hosted iterative evidence is 1,592 screenshots.
 
 ## Remediated Findings
 
@@ -90,4 +92,4 @@ All findings were independently diagnosed, corrected, and covered by rerun evide
 
 ## Release Decision
 
-Current recommendation: `conditional go`. Local implementation, science, responsive, regression, performance, security, and Pages-form gates pass. Final release status becomes `go` only after the documentation-complete archive restores cleanly and the pushed GitHub Pages commit, application shell, generated assets, and live interaction smoke test pass. The scientific model remains explanatory and uncertainty-labeled rather than predictive; this is a product constraint, not an unresolved release defect.
+Recommendation: `go`. Local implementation, science, responsive, regression, performance, security, recovery, GitHub Actions, public Pages, live assets, and hosted five-resolution interaction gates pass. No required validation layer is deferred. The scientific model remains explanatory and uncertainty-labeled rather than predictive; this is a product constraint, not an unresolved release defect.

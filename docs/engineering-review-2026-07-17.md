@@ -64,4 +64,4 @@ Each category contains multiple independent checks; the score is deliberately ca
 - Populations stand in for genomes and individuals; named organelles/organs are functional analogues, not alien morphology predictions.
 - Dedicated screen-reader sessions, user-scaled typography stress, Firefox/WebKit rendering, and a worker-based simulation remain future hardening opportunities.
 
-These are visible research/product boundaries, not hidden release defects. The release decision is `go` only after the live Pages URL and its hashed assets pass post-deploy verification.
+These are visible research/product boundaries, not hidden release defects. The release decision is `go`: the public Pages URL, its hashed assets, the hosted application workflow, and the complete five-resolution interaction matrix passed post-deploy verification.
