@@ -1,8 +1,9 @@
 import { DEFAULT_ELEMENTS, DEFAULT_PARAMS, PARAM_BOUNDS } from "./constants";
 import { clamp } from "./random";
-import type { Atmosphere, ChemistryState, GasId, InteriorState, LimitingFactor, PlanetObservables, PlanetParams, SimulationState, SurfaceState } from "./types";
+import type { Atmosphere, ChemistryState, ElementalBasis, ElementId, GasId, InteriorState, LimitingFactor, OriginDiagnostics, OriginGate, PlanetObservables, PlanetParams, SimulationState, SurfaceState } from "./types";
 
 const GAS_KEYS: GasId[] = ["n2", "co2", "h2o", "ch4", "o2", "h2", "nh3", "so2"];
+const ELEMENT_KEYS: ElementId[] = ["carbon", "hydrogen", "nitrogen", "oxygen", "phosphorus", "sulfur", "iron"];
 
 export function normalizeAtmosphere(input?: Partial<Atmosphere>): Atmosphere {
   const values = Object.fromEntries(GAS_KEYS.map((gas) => {
@@ -11,8 +12,16 @@ export function normalizeAtmosphere(input?: Partial<Atmosphere>): Atmosphere {
     return [gas, clamp(value, 0, 1)];
   })) as Atmosphere;
   const total = GAS_KEYS.reduce((sum, gas) => sum + values[gas], 0) || 1;
+  if (Math.abs(total - 1) <= 1e-12) return values;
   for (const gas of GAS_KEYS) values[gas] /= total;
   return values;
+}
+
+export function normalizeElementBasis(input?: Partial<ElementalBasis>): ElementalBasis {
+  return Object.fromEntries(ELEMENT_KEYS.map((element) => {
+    const candidate = Number(input?.[element] ?? DEFAULT_ELEMENTS[element]);
+    return [element, clamp(Number.isFinite(candidate) ? candidate : DEFAULT_ELEMENTS[element])];
+  })) as ElementalBasis;
 }
 
 export function normalizeParams(input?: Partial<PlanetParams>): PlanetParams {
@@ -20,7 +29,8 @@ export function normalizeParams(input?: Partial<PlanetParams>): PlanetParams {
     ...DEFAULT_PARAMS,
     ...input,
     seed: String(input?.seed ?? DEFAULT_PARAMS.seed).slice(0, 120),
-    atmosphere: normalizeAtmosphere(input?.atmosphere)
+    atmosphere: normalizeAtmosphere(input?.atmosphere),
+    elementBasis: normalizeElementBasis(input?.elementBasis)
   };
   for (const [key, bounds] of Object.entries(PARAM_BOUNDS) as Array<[keyof PlanetParams, [number, number]]>) {
     const candidate = Number(normalized[key]);
@@ -28,17 +38,59 @@ export function normalizeParams(input?: Partial<PlanetParams>): PlanetParams {
     const raw = Number.isFinite(candidate) ? candidate : fallback;
     (normalized as unknown as Record<string, number>)[key] = clamp(raw, bounds[0], bounds[1]);
   }
+  normalized.starCount = Math.round(normalized.starCount);
+  if (normalized.starCount === 1) normalized.starTopology = "single";
+  else if (normalized.starCount === 2 && normalized.starTopology === "single") normalized.starTopology = "circumbinary";
+  else if (normalized.starCount === 3) normalized.starTopology = "hierarchical-triple";
+  if (!["single", "circumbinary", "hierarchical-triple"].includes(normalized.starTopology)) normalized.starTopology = normalized.starCount === 1 ? "single" : normalized.starCount === 2 ? "circumbinary" : "hierarchical-triple";
+  if (normalized.biochemistryMode !== "unsupported-alternative") normalized.biochemistryMode = "aqueous-carbon";
   const rockTotal = normalized.coreFraction + normalized.mantleFraction;
-  if (rockTotal > 0.98) {
+  if (rockTotal > 0.9800000001) {
     normalized.coreFraction = normalized.coreFraction / rockTotal * 0.98;
     normalized.mantleFraction = normalized.mantleFraction / rockTotal * 0.98;
   }
   return normalized;
 }
 
-export function stellarFlux(params: PlanetParams): number {
+export function stellarFluxComponents(params: PlanetParams): { primary: number; companion: number; total: number; companionFraction: number } {
   const eccentricityAverage = 1 / Math.sqrt(Math.max(0.01, 1 - params.orbitalEccentricity ** 2));
-  return params.starLuminositySolar * eccentricityAverage / Math.max(0.0009, params.orbitalDistanceAu ** 2);
+  const primary = params.starLuminositySolar * eccentricityAverage / Math.max(0.0009, params.orbitalDistanceAu ** 2);
+  const companion = params.starCount > 1
+    ? (params.starCount - 1) * params.companionLuminositySolar / Math.max(0.0025, params.companionDistanceAu ** 2)
+    : 0;
+  const total = primary + companion;
+  return { primary, companion, total, companionFraction: companion / Math.max(0.0001, total) };
+}
+
+export function stellarFlux(params: PlanetParams): number {
+  return stellarFluxComponents(params).total;
+}
+
+export function stellarClass(temperatureK: number): "M" | "K" | "G" | "F" | "A" {
+  if (temperatureK < 3900) return "M";
+  if (temperatureK < 5200) return "K";
+  if (temperatureK < 6000) return "G";
+  if (temperatureK < 7500) return "F";
+  return "A";
+}
+
+export function effectiveStellarActivity(params: PlanetParams, elapsedMyr = 0): number {
+  const ageGyr = Math.max(0.05, params.starAgeGyr + elapsedMyr / 1000);
+  const ageAmplification = Math.pow(Math.max(0.08, ageGyr / 4.6), -0.55);
+  const coolStarPersistence = params.starTemperatureK < 3900 ? 1.22 : params.starTemperatureK > 6500 ? 1.12 : 1;
+  return clamp(params.starActivity * ageAmplification * coolStarPersistence, 0, 2.5);
+}
+
+export function orbitalExtremes(params: PlanetParams): { periapsisAu: number; apoapsisAu: number; periapsisFlux: number; apoapsisFlux: number } {
+  const periapsisAu = Math.max(0.001, params.orbitalDistanceAu * (1 - params.orbitalEccentricity));
+  const apoapsisAu = params.orbitalDistanceAu * (1 + params.orbitalEccentricity);
+  const companion = stellarFluxComponents(params).companion;
+  return {
+    periapsisAu,
+    apoapsisAu,
+    periapsisFlux: params.starLuminositySolar / periapsisAu ** 2 + companion * (1 + params.companionVariability),
+    apoapsisFlux: params.starLuminositySolar / Math.max(0.000001, apoapsisAu ** 2) + companion * (1 - params.companionVariability)
+  };
 }
 
 /** Kopparapu et al. (2013/2014) conservative runaway/maximum-greenhouse flux fits. */
@@ -58,19 +110,30 @@ export function habitableZoneStatus(flux: number, starTemperatureK = 5780): "inn
   return "temperate-flux";
 }
 
+export function greenhouseContributions(atmosphere: Atmosphere, pressureBar: number): Partial<Record<GasId | "pressure", number>> {
+  const partials = atmospherePartialPressures(atmosphere, pressureBar);
+  const pressureBroadening = 5 * Math.log1p(Math.max(0.01, pressureBar));
+  return {
+    h2o: 18 * Math.log1p(partials.h2o * 10),
+    co2: 12 * Math.log1p(partials.co2 * 20),
+    ch4: 8 * Math.log1p(partials.ch4 * 50),
+    h2: 4 * Math.log1p(partials.h2 * pressureBar * 10),
+    nh3: 6 * Math.log1p(partials.nh3 * 40),
+    pressure: pressureBroadening
+  };
+}
+
 export function greenhouseWarming(atmosphere: Atmosphere, pressureBar: number): number {
-  const pressureFactor = Math.log1p(Math.max(0.01, pressureBar)) / Math.log(2);
-  const absorbers = atmosphere.h2o * 1.1 + atmosphere.co2 * 0.95 + atmosphere.ch4 * 1.35 + atmosphere.h2 * 0.28 + atmosphere.nh3 * 0.75;
-  return clamp(12 + pressureFactor * (15 + absorbers * 52), 0, 140);
+  return clamp(Object.values(greenhouseContributions(atmosphere, pressureBar)).reduce((sum, value) => sum + (value || 0), 0), 0, 140);
 }
 
-export function equilibriumTemperatureNoGreenhouse(params: PlanetParams): number {
+export function equilibriumTemperatureNoGreenhouse(params: PlanetParams, albedo = params.albedo): number {
   const flux = stellarFlux(params);
-  return 278.5 * Math.pow(Math.max(0.01, flux), 0.25) * Math.pow((1 - params.albedo) / 0.7, 0.25) - 273.15;
+  return 278.5 * Math.pow(Math.max(0.01, flux), 0.25) * Math.pow((1 - albedo) / 0.7, 0.25) - 273.15;
 }
 
-export function equilibriumTemperature(params: PlanetParams, atmosphere: Atmosphere, pressureBar: number): number {
-  return equilibriumTemperatureNoGreenhouse(params) + greenhouseWarming(atmosphere, pressureBar);
+export function equilibriumTemperature(params: PlanetParams, atmosphere: Atmosphere, pressureBar: number, albedo = params.albedo): number {
+  return equilibriumTemperatureNoGreenhouse(params, albedo) + greenhouseWarming(atmosphere, pressureBar);
 }
 
 export function atmospherePartialPressures(atmosphere: Atmosphere, pressureBar: number): Atmosphere {
@@ -86,6 +149,29 @@ export function applyAtmosphereFlux(state: Pick<SimulationState, "atmosphere" | 
   for (const gas of GAS_KEYS) state.atmosphere[gas] = partials[gas] / total;
 }
 
+function cloudCoverIndex(atmosphere: Atmosphere, pressureBar: number, liquidWater: number, rotationHours: number): number {
+  const waterColumn = atmosphere.h2o * pressureBar;
+  const slowRotationClouds = clamp((rotationHours - 24) / 240) * 0.14;
+  return clamp(waterColumn * 1.7 + liquidWater * 0.34 + slowRotationClouds);
+}
+
+export function effectivePlanetaryAlbedo(params: PlanetParams, surface?: Pick<SurfaceState, "ice" | "oceanCoverage" | "liquidWater">, atmosphere = params.atmosphere, pressureBar = params.atmospherePressureBar): number {
+  const ice = surface?.ice ?? 0;
+  const ocean = surface?.oceanCoverage ?? clamp(params.waterInventory * (1 - params.landFraction));
+  const liquid = surface?.liquidWater ?? clamp(params.waterInventory);
+  const clouds = cloudCoverIndex(atmosphere, pressureBar, liquid, params.rotationHours);
+  return clamp(params.albedo + ice * 0.32 - ocean * 0.08 + clouds * 0.1, 0.04, 0.82);
+}
+
+function climateRegime(temperatureC: number, liquidWater: number, ice: number): PlanetObservables["climateRegime"] {
+  if (ice > 0.72 || temperatureC < -18) return "snowball";
+  if (temperatureC < 4 || liquidWater < 0.12) return "cold-arid";
+  if (temperatureC < 35) return "temperate";
+  if (temperatureC < 58) return "warm-humid";
+  if (temperatureC < 82) return "moist-greenhouse";
+  return "hothouse";
+}
+
 export function makeInterior(params: PlanetParams): InteriorState {
   const coreActivity = clamp(params.initialHeat * 0.56 + params.radionuclides * 0.24 + params.coreFraction * 0.42);
   return {
@@ -99,7 +185,11 @@ export function makeInterior(params: PlanetParams): InteriorState {
 }
 
 export function makeSurface(params: PlanetParams, atmosphere: Atmosphere): SurfaceState {
-  const temperatureC = equilibriumTemperature(params, atmosphere, params.atmospherePressureBar);
+  const provisionalTemperature = equilibriumTemperature(params, atmosphere, params.atmospherePressureBar);
+  const provisionalIce = clamp((5 - provisionalTemperature) / 70) * params.waterInventory;
+  const provisionalLiquid = clamp(params.waterInventory * clamp(1 - Math.abs(provisionalTemperature - 18) / 72) - provisionalIce * 0.25);
+  const provisionalSurface = { ice: provisionalIce, liquidWater: provisionalLiquid, oceanCoverage: clamp(provisionalLiquid * (1 - params.landFraction * 0.35)) };
+  const temperatureC = equilibriumTemperature(params, atmosphere, params.atmospherePressureBar, effectivePlanetaryAlbedo(params, provisionalSurface, atmosphere, params.atmospherePressureBar));
   const liquidThermal = clamp(1 - Math.abs(temperatureC - 18) / 72);
   const ice = clamp((5 - temperatureC) / 70) * params.waterInventory;
   const liquidWater = clamp(params.waterInventory * liquidThermal - ice * 0.25);
@@ -118,7 +208,7 @@ export function makeSurface(params: PlanetParams, atmosphere: Atmosphere): Surfa
 }
 
 export function makeChemistry(params: PlanetParams, surface: SurfaceState): ChemistryState {
-  const elements = { ...DEFAULT_ELEMENTS };
+  const elements = { ...params.elementBasis };
   elements.phosphorus = clamp(elements.phosphorus + params.landFraction * 0.14);
   elements.sulfur = clamp(elements.sulfur + params.initialHeat * 0.14);
   return {
@@ -138,7 +228,8 @@ export function habitabilityScore(state: SimulationState): number {
   const pressure = clamp(1 - Math.abs(Math.log10(Math.max(0.01, state.atmospherePressureBar))) / 1.5);
   const water = clamp(state.surface.liquidWater * 1.35);
   const radiation = clamp(1 - state.surface.radiation * 0.88);
-  const stability = clamp(state.interior.tectonics * 0.22 + (1 - state.params.orbitalEccentricity) * 0.28 + 0.5);
+  const stellarVariation = stellarFluxComponents(state.params).companionFraction * state.params.companionVariability;
+  const stability = clamp(state.interior.tectonics * 0.22 + (1 - state.params.orbitalEccentricity) * 0.28 + 0.5 - stellarVariation * .2);
   return clamp(thermal * 0.29 + pressure * 0.16 + water * 0.25 + radiation * 0.17 + stability * 0.13);
 }
 
@@ -146,23 +237,72 @@ export function planetObservables(state: SimulationState): PlanetObservables {
   const { params } = state;
   const gravityEarth = params.planetMassEarth / params.planetRadiusEarth ** 2;
   const escapeVelocityKmS = 11.186 * Math.sqrt(params.planetMassEarth / params.planetRadiusEarth);
+  const bulkDensityGcm3 = 5.514 * params.planetMassEarth / params.planetRadiusEarth ** 3;
   const orbitalPeriodDays = 365.256 * Math.sqrt(params.orbitalDistanceAu ** 3 / Math.max(0.1, params.starMassSolar));
-  const equilibriumTemperatureC = equilibriumTemperatureNoGreenhouse(params);
+  const extremes = orbitalExtremes(params);
+  const fluxComponents = stellarFluxComponents(params);
+  const orbitalForcingAmplitude = clamp((extremes.periapsisFlux - extremes.apoapsisFlux) / Math.max(0.001, extremes.periapsisFlux + extremes.apoapsisFlux));
+  const multiStarVariabilityIndex = clamp(fluxComponents.companionFraction * params.companionVariability + (params.starCount - 1) * .06);
+  const orbitalPeriodHours = orbitalPeriodDays * 24;
+  const solarDayHours = Math.min(10_000_000, 1 / Math.max(0.0000001, Math.abs(1 / params.rotationHours - 1 / orbitalPeriodHours)));
+  const rotationOrbitRatio = params.rotationHours / orbitalPeriodHours;
+  const effectiveAlbedo = effectivePlanetaryAlbedo(params, state.surface, state.atmosphere, state.atmospherePressureBar);
+  const equilibriumTemperatureC = equilibriumTemperatureNoGreenhouse(params, effectiveAlbedo);
   const greenhouseDeltaC = state.surface.temperatureC - equilibriumTemperatureC;
+  const absorbedStellarWm2 = 1361 * stellarFlux(params) * (1 - effectiveAlbedo) / 4;
+  const cloudCover = cloudCoverIndex(state.atmosphere, state.atmospherePressureBar, state.surface.liquidWater, params.rotationHours);
+  const hydrologicalCycleIndex = clamp(state.surface.liquidWater * clamp((state.surface.temperatureC + 12) / 60) * (0.55 + cloudCover * 0.45));
+  const climateBufferIndex = clamp(Math.log1p(state.atmospherePressureBar) * 0.22 + state.surface.oceanCoverage * 0.42 + (1 - orbitalForcingAmplitude) * 0.2 + clamp(48 / params.rotationHours) * 0.16);
+  const regime = climateRegime(state.surface.temperatureC, state.surface.liquidWater, state.surface.ice);
+  const snowballRisk = clamp(state.surface.ice * 0.7 + clamp((5 - state.surface.temperatureC) / 45) * 0.3);
+  const runawayGreenhouseRisk = clamp(clamp((state.surface.temperatureC - 45) / 55) * 0.55 + clamp((stellarFlux(params) - 0.9) / 0.6) * state.atmosphere.h2o * 0.8);
+  const atmosphericCollapseRisk = clamp(clamp((0.18 - state.atmospherePressureBar) / 0.18) * 0.55 + clamp((-35 - state.surface.temperatureC) / 70) * 0.25 + (1 - gravityEarth) * 0.2);
   const hz = habitableZoneFluxLimits(params.starTemperatureK);
+  const currentStellarClass = stellarClass(params.starTemperatureK);
+  const stellarMainSequenceLifetimeGyr = clamp(10 * Math.pow(params.starMassSolar, -2.5), 0.2, 100);
+  const currentStarAgeGyr = params.starAgeGyr + state.ageMyr / 1000;
+  const stellarAgeFraction = clamp(currentStarAgeGyr / stellarMainSequenceLifetimeGyr);
+  const highEnergyFluxIndex = clamp(effectiveStellarActivity(params, state.ageMyr) * stellarFlux(params) * (currentStellarClass === "M" ? 1.18 : 0.86));
+  const spectralMatch = Math.exp(-Math.pow((params.starTemperatureK - 5350) / 2450, 2));
+  const photosyntheticPhotonIndex = clamp(stellarFlux(params) * spectralMatch * (1 - cloudCover * 0.3) / 1.15);
   const column = state.atmospherePressureBar * gravityEarth;
-  const atmosphericRetentionIndex = clamp((escapeVelocityKmS / 11.186) * 0.58 + Math.log1p(column) * 0.24 - params.starActivity * 0.32);
-  const climateStabilityIndex = clamp((1 - params.orbitalEccentricity) * 0.34 + (1 - params.axialTiltDeg / 90) * 0.16 + state.interior.tectonics * 0.22 + state.surface.liquidWater * 0.28);
+  const atmosphericRetentionIndex = clamp((escapeVelocityKmS / 11.186) * 0.52 + Math.log1p(column) * 0.26 - highEnergyFluxIndex * 0.28);
+  const climateStabilityIndex = clamp((1 - orbitalForcingAmplitude) * 0.25 + climateBufferIndex * 0.28 + state.interior.tectonics * 0.18 + state.surface.liquidWater * 0.2 + (1 - Math.abs(params.axialTiltDeg - 23.4) / 90) * 0.09);
   const redoxDisequilibriumIndex = clamp((state.atmosphere.o2 * state.atmosphere.ch4 * 110) + state.chemistry.redoxGradient * 0.36);
   const closeOrbit = params.orbitalDistanceAu < 0.18 * Math.cbrt(params.starMassSolar);
   const tidalLockingRisk = closeOrbit || params.rotationHours > orbitalPeriodDays * 12 ? "high" : params.rotationHours > 96 || params.orbitalDistanceAu < 0.45 ? "moderate" : "low";
+  const tectonicRegime = state.interior.tectonics > 0.58 ? "mobile lid" : state.interior.tectonics > 0.2 ? "episodic lid" : "stagnant lid";
+  const internalHeatFluxIndex = clamp(state.interior.heat * 0.44 + state.interior.volcanism * 0.31 + params.radionuclides * 0.25);
+  const thermalWeathering = clamp(1 - Math.abs(state.surface.temperatureC - 22) / 75);
+  const weatheringFluxIndex = clamp(state.surface.landFraction * state.surface.liquidWater * thermalWeathering * (0.35 + state.interior.tectonics * 0.65) * 1.8);
+  const seafloorWeatheringIndex = clamp(state.surface.oceanCoverage * state.surface.liquidWater * (0.28 + state.surface.hydrothermalActivity * 0.72));
+  const outgassingFluxIndex = clamp(state.interior.outgassing * (0.55 + state.interior.volcanism * 0.45));
+  const totalWeathering = weatheringFluxIndex + seafloorWeatheringIndex * 0.55;
+  const carbonCycleBalance = clamp((outgassingFluxIndex - totalWeathering) / Math.max(0.05, outgassingFluxIndex + totalWeathering), -1, 1);
+  const phosphorusAccess = clamp(state.chemistry.elements.phosphorus * 0.34 + weatheringFluxIndex * 0.38 + seafloorWeatheringIndex * (state.atmosphere.o2 < 0.05 ? 0.28 : 0.16));
+  const nitrogenAccess = clamp(state.chemistry.elements.nitrogen * 0.38 + state.atmosphere.n2 * state.atmospherePressureBar * 0.22 + state.interior.volcanism * 0.12 + state.lineages.length * 0.008);
+  const ironAccess = clamp(state.chemistry.elements.iron * 0.35 + state.surface.hydrothermalActivity * 0.42 + seafloorWeatheringIndex * 0.23 - state.atmosphere.o2 * 0.3);
   const oxygenicProduction = state.lineages.reduce((sum, lineage) => {
     const oxygenic = (lineage.metabolism === "phototroph" || lineage.metabolism === "mixotroph")
       && (lineage.structures.includes("chloroplast") || lineage.traits.photosynthesis > 0.72);
     return sum + (oxygenic ? lineage.biomass * lineage.traits.photosynthesis : 0);
   }, 0);
   const oxygenSinks = state.lineages.reduce((sum, lineage) => sum + lineage.biomass * lineage.traits.oxygenUse, 0) + state.interior.volcanism * 0.12 + state.atmosphere.ch4 * state.atmospherePressureBar;
-  return { gravityEarth, escapeVelocityKmS, orbitalPeriodDays, equilibriumTemperatureC, greenhouseDeltaC, habitableZoneInnerFlux: hz.inner, habitableZoneOuterFlux: hz.outer, atmosphericRetentionIndex, climateStabilityIndex, redoxDisequilibriumIndex, tidalLockingRisk, oxygenicProduction, oxygenSinks };
+  const oxygenPartialBar = state.atmosphere.o2 * state.atmospherePressureBar;
+  const abioticOxygenRisk = clamp(highEnergyFluxIndex * (0.18 + clamp(1 - params.waterInventory / 1.5) * 0.38) * (oxygenPartialBar > 0.015 ? 0.75 : 0.35) * (1 - clamp(oxygenicProduction)));
+  return {
+    gravityEarth, escapeVelocityKmS, bulkDensityGcm3, orbitalPeriodDays, ...extremes,
+    primaryStellarFlux: fluxComponents.primary, companionStellarFlux: fluxComponents.companion,
+    companionFluxFraction: fluxComponents.companionFraction, multiStarVariabilityIndex, stellarArchitecture: params.starTopology,
+    orbitalForcingAmplitude, solarDayHours, rotationOrbitRatio,
+    equilibriumTemperatureC, greenhouseDeltaC, absorbedStellarWm2, effectiveAlbedo, cloudCoverIndex: cloudCover, hydrologicalCycleIndex,
+    climateBufferIndex, climateRegime: regime, snowballRisk, runawayGreenhouseRisk, atmosphericCollapseRisk,
+    habitableZoneInnerFlux: hz.inner, habitableZoneOuterFlux: hz.outer, stellarClass: currentStellarClass, stellarMainSequenceLifetimeGyr,
+    stellarAgeFraction, highEnergyFluxIndex, photosyntheticPhotonIndex, atmosphericRetentionIndex, climateStabilityIndex,
+    redoxDisequilibriumIndex, tidalLockingRisk, tectonicRegime, internalHeatFluxIndex, weatheringFluxIndex, seafloorWeatheringIndex,
+    outgassingFluxIndex, carbonCycleBalance, phosphorusAccess, nitrogenAccess, ironAccess, abioticOxygenRisk,
+    greenhouseContributionsC: greenhouseContributions(state.atmosphere, state.atmospherePressureBar), oxygenicProduction, oxygenSinks
+  };
 }
 
 export function limitingFactors(state: SimulationState): LimitingFactor[] {
@@ -178,12 +318,50 @@ export function limitingFactors(state: SimulationState): LimitingFactor[] {
   return factors.sort((a, b) => a.score - b.score);
 }
 
+export function originDiagnostics(state: SimulationState): OriginDiagnostics {
+  const { chemistry, origin, surface, params } = state;
+  const feedstock = clamp((chemistry.simpleOrganics * 0.2 + chemistry.aminoAcids * 0.22 + chemistry.lipids * 0.24 + chemistry.nucleotides * 0.34) / 1.4);
+  const energy = clamp(origin.energy * 0.5 + chemistry.redoxGradient * 0.32 + (1 - surface.radiation) * 0.18);
+  const concentrationByTheory: Record<string, number> = {
+    pond: surface.wetDryCycling * origin.wetDryCycling,
+    "rna-first": surface.wetDryCycling * origin.wetDryCycling * (0.55 + chemistry.nucleotides * 0.35),
+    hydrothermal: surface.hydrothermalActivity * origin.ventFlux,
+    atmospheric: origin.energy * (0.4 + params.starActivity * 0.35),
+    "uv-network": origin.energy * (0.38 + params.starActivity * 0.24) * (0.62 + origin.wetDryCycling * surface.wetDryCycling * 0.38),
+    "ice-eutectic": surface.ice * 0.78 + (1 - surface.radiation) * 0.12,
+    "mineral-template": origin.catalysts * (0.45 + surface.wetDryCycling * 0.35),
+    "lipid-first": chemistry.lipids * 0.48 + surface.wetDryCycling * 0.42,
+    exogenous: origin.exogenousDose * origin.recurrence,
+    lithopanspermia: origin.exogenousDose * origin.survivalFraction,
+    custom: Math.max(surface.wetDryCycling * origin.wetDryCycling, surface.hydrothermalActivity * origin.ventFlux, origin.exogenousDose * origin.recurrence) * 0.8
+  };
+  const concentration = clamp(concentrationByTheory[origin.theory] ?? concentrationByTheory.custom);
+  const catalysis = clamp(origin.catalysts * 0.48 + surface.nutrients * 0.22 + surface.hydrothermalActivity * 0.2 + chemistry.elements.iron * 0.1);
+  const compartment = clamp(chemistry.lipids * 0.46 + chemistry.polymers * 0.3 + concentration * 0.24);
+  const heredity = clamp(chemistry.nucleotides * 0.48 + chemistry.polymers * 0.42 + chemistry.protocells * 0.1);
+  const thermalStress = clamp(Math.abs(surface.temperatureC - 28) / 90);
+  const dilution = clamp(surface.oceanCoverage - surface.wetDryCycling) * 0.26;
+  const degradationPressure = clamp(surface.radiation * 0.38 + thermalStress * 0.32 + dilution + (1 - concentration) * 0.12);
+  const gates: OriginGate[] = [
+    { id: "feedstock", label: "Feedstock diversity", score: feedstock, detail: "Organic, amino-acid, lipid, and nucleotide analogue availability", confidence: "coarse" },
+    { id: "energy", label: "Usable energy", score: energy, detail: "Chemical gradients and bounded photochemical input", confidence: "coarse" },
+    { id: "concentration", label: "Concentration cycles", score: concentration, detail: `Model context alignment for the ${origin.theory.replaceAll("-", " ")} protocol`, confidence: "coarse" },
+    { id: "catalysis", label: "Catalytic surfaces", score: catalysis, detail: "Mineral, nutrient, and hydrothermal catalytic opportunity", confidence: "coarse" },
+    { id: "compartment", label: "Compartment stability", score: compartment, detail: "Boundary formation from lipid and polymer analogues", confidence: "speculative" },
+    { id: "heredity", label: "Heredity opportunity", score: heredity, detail: "Persistent informational and functional polymer opportunity", confidence: "speculative" }
+  ];
+  const limitingGate = gates.reduce((lowest, gate) => gate.score < lowest.score ? gate : lowest);
+  const geometricSupport = Math.pow(gates.reduce((product, gate) => product * Math.max(0.0001, gate.score), 1), 1 / gates.length);
+  const readiness = clamp((limitingGate.score * 0.48 + geometricSupport * 0.52) * (1 - degradationPressure * 0.58));
+  const opportunityRatePerMyr = Math.pow(readiness, 3.4) * Math.max(0.01, 1.05 - params.originDifficulty) * 0.0021
+    + (origin.theory === "lithopanspermia" ? origin.survivalFraction * origin.exogenousDose * 0.0004 : 0);
+  const entryShielding = clamp(Math.log1p(state.atmospherePressureBar) / 2.2 + state.interior.magneticShield * 0.08);
+  const deliverySurvivalIndex = clamp(origin.survivalFraction * (0.24 + entryShielding * 0.34 + (1 - surface.radiation) * 0.42));
+  return { gates, limitingGate, readiness, degradationPressure, opportunityRatePerMyr, deliverySurvivalIndex };
+}
+
 export function prebioticReadiness(state: SimulationState): number {
-  const chemistry = state.chemistry;
-  const buildingBlocks = clamp((chemistry.aminoAcids + chemistry.lipids + chemistry.nucleotides * 1.4 + chemistry.polymers * 1.8) / 2.1);
-  const gradients = clamp((chemistry.redoxGradient + state.origin.energy + state.origin.catalysts) / 3);
-  const cycling = clamp((state.surface.wetDryCycling * state.origin.wetDryCycling + state.surface.hydrothermalActivity * state.origin.ventFlux) * 0.9);
-  return clamp(habitabilityScore(state) * 0.32 + buildingBlocks * 0.34 + gradients * 0.2 + cycling * 0.14);
+  return originDiagnostics(state).readiness;
 }
 
 export function updatePlanet(state: SimulationState, dtMyr: number): void {
@@ -199,7 +377,8 @@ export function updatePlanet(state: SimulationState, dtMyr: number): void {
   interior.outgassing = clamp(interior.volcanism * (0.65 + params.radionuclides * 0.25));
 
   const gravity = params.planetMassEarth / params.planetRadiusEarth ** 2;
-  const erosion = params.starActivity * 0.000012 * dt / Math.max(0.18, gravity * state.atmospherePressureBar);
+  const stellarActivity = effectiveStellarActivity(params, state.ageMyr);
+  const erosion = stellarActivity * 0.000012 * dt / Math.max(0.18, gravity * state.atmospherePressureBar);
   const partials = atmospherePartialPressures(atmosphere, state.atmospherePressureBar);
   applyAtmosphereFlux(state, {
     n2: -partials.n2 * erosion * 0.18,
@@ -207,12 +386,13 @@ export function updatePlanet(state: SimulationState, dtMyr: number): void {
     h2o: interior.outgassing * 0.000008 * dt - Math.max(0, surface.temperatureC - 70) * 0.000001 * dt - partials.h2o * erosion * 0.2,
     so2: interior.volcanism * 0.000004 * dt - Math.min(partials.so2, 0.000006 * dt),
     h2: -partials.h2 * erosion * 4,
-    nh3: -partials.nh3 * params.starActivity * 0.00002 * dt,
+    nh3: -partials.nh3 * stellarActivity * 0.00002 * dt,
     ch4: -partials.ch4 * erosion * 0.35,
     o2: -partials.o2 * erosion * 0.12
   });
 
-  const targetTemperature = equilibriumTemperature(params, atmosphere, state.atmospherePressureBar);
+  const dynamicAlbedo = effectivePlanetaryAlbedo(params, surface, atmosphere, state.atmospherePressureBar);
+  const targetTemperature = equilibriumTemperature(params, atmosphere, state.atmospherePressureBar, dynamicAlbedo);
   surface.temperatureC += (targetTemperature - surface.temperatureC) * clamp(dt * 0.015, 0.01, 0.3);
   const thermalLiquid = clamp(1 - Math.abs(surface.temperatureC - 18) / 76);
   const escapeLoss = Math.max(0, surface.temperatureC - 75) * erosion * 0.002 * dt;
@@ -220,20 +400,24 @@ export function updatePlanet(state: SimulationState, dtMyr: number): void {
   surface.ice = clamp(params.waterInventory * clamp((5 - surface.temperatureC) / 72));
   surface.liquidWater = clamp(params.waterInventory * thermalLiquid - surface.ice * 0.18);
   surface.oceanCoverage = clamp(surface.liquidWater * (1 - surface.landFraction * 0.3));
-  surface.radiation = clamp(params.starActivity / Math.max(0.2, state.atmospherePressureBar * gravity) * (0.92 - interior.magneticShield * 0.08));
+  surface.radiation = clamp(stellarActivity / Math.max(0.2, state.atmospherePressureBar * gravity) * (0.92 - interior.magneticShield * 0.08));
   surface.hydrothermalActivity = clamp(interior.volcanism * surface.liquidWater * (0.4 + interior.tectonics * 0.6));
   surface.wetDryCycling = clamp(surface.landFraction * surface.liquidWater * (0.55 + params.axialTiltDeg / 75));
-  surface.nutrients = clamp(surface.nutrients + (interior.tectonics * surface.landFraction + surface.hydrothermalActivity) * 0.00004 * dt - state.lineages.length * 0.000006 * dt);
+  const landWeathering = surface.landFraction * surface.liquidWater * clamp(1 - Math.abs(surface.temperatureC - 22) / 75);
+  const seafloorWeathering = surface.oceanCoverage * surface.hydrothermalActivity;
+  surface.nutrients = clamp(surface.nutrients + (interior.tectonics * landWeathering + seafloorWeathering * 0.65) * 0.000045 * dt - state.lineages.length * 0.000006 * dt);
   surface.ph = clamp(7.6 - atmosphere.co2 * state.atmospherePressureBar * 2.8 + interior.tectonics * 0.45, 2, 12);
 
-  const energyChemistry = state.origin.energy * (0.35 + params.starActivity * 0.28 + interior.volcanism * 0.37);
+  const energyChemistry = state.origin.energy * (0.35 + stellarActivity * 0.28 + interior.volcanism * 0.37);
   const catalytic = state.origin.catalysts * (0.35 + surface.nutrients * 0.25 + surface.hydrothermalActivity * 0.4);
   const organicGain = (energyChemistry + state.origin.exogenousDose * state.origin.recurrence * 0.2) * 0.00013 * dt;
-  chemistry.simpleOrganics = clamp(chemistry.simpleOrganics + organicGain - surface.radiation * 0.000035 * dt, 0, 3);
-  chemistry.aminoAcids = clamp(chemistry.aminoAcids + chemistry.simpleOrganics * catalytic * 0.000065 * dt, 0, 2);
-  chemistry.lipids = clamp(chemistry.lipids + chemistry.simpleOrganics * (0.3 + surface.wetDryCycling) * 0.000047 * dt, 0, 2);
-  chemistry.nucleotides = clamp(chemistry.nucleotides + chemistry.simpleOrganics * catalytic * surface.liquidWater * 0.00003 * dt, 0, 2);
+  const thermalDegradation = clamp(Math.abs(surface.temperatureC - 28) / 100);
+  const dilutionPressure = clamp(surface.oceanCoverage - surface.wetDryCycling) * 0.000012 * dt;
+  chemistry.simpleOrganics = clamp(chemistry.simpleOrganics + organicGain - (surface.radiation * 0.000035 + thermalDegradation * 0.000014) * dt, 0, 3);
+  chemistry.aminoAcids = clamp(chemistry.aminoAcids + chemistry.simpleOrganics * catalytic * 0.000065 * dt - dilutionPressure * 0.34, 0, 2);
+  chemistry.lipids = clamp(chemistry.lipids + chemistry.simpleOrganics * (0.3 + surface.wetDryCycling) * 0.000047 * dt - surface.radiation * 0.000004 * dt, 0, 2);
+  chemistry.nucleotides = clamp(chemistry.nucleotides + chemistry.simpleOrganics * catalytic * surface.liquidWater * 0.00003 * dt - (thermalDegradation * 0.000006 * dt + dilutionPressure * 0.52), 0, 2);
   const polymerization = chemistry.aminoAcids * chemistry.nucleotides * (surface.wetDryCycling * state.origin.wetDryCycling + surface.hydrothermalActivity * state.origin.ventFlux) * 0.000018 * dt;
-  chemistry.polymers = clamp(chemistry.polymers + polymerization - surface.radiation * 0.000008 * dt, 0, 2);
+  chemistry.polymers = clamp(chemistry.polymers + polymerization - (surface.radiation * 0.000008 + thermalDegradation * 0.000005) * dt - dilutionPressure * 0.24, 0, 2);
   chemistry.redoxGradient = clamp(surface.hydrothermalActivity * 0.52 + atmosphere.h2 * 0.24 + atmosphere.co2 * 0.18 + atmosphere.o2 * 0.38);
 }

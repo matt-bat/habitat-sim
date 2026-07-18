@@ -1,218 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Activity, Atom, BookOpen, ChevronRight, CircleStop, Dna, Download, FlaskConical, Gauge, GitBranch,
-  Home, Leaf, Pause, Play, RotateCcw, Save, Sparkles, StepForward, Upload
+  Atom, BookOpen, ChevronRight, FlaskConical, Gauge, GitBranch, Home, Leaf, Pause, Play, RotateCcw,
+  Sparkles, StepForward
 } from "lucide-react";
-import { DEFAULT_ORIGIN, DEFAULT_PARAMS, PLANET_PRESETS } from "./simulation/constants";
-import { HabitatSimulation } from "./simulation/engine";
-import { defaultIntervention } from "./simulation/interventions";
-import { normalizeParams } from "./simulation/planet";
-import { makeSeed } from "./simulation/random";
-import type { GasId, InterventionType, Lineage, OriginConfig, PlanetParams, SimulationSummary, TimelineEvent } from "./simulation/types";
 import { BiosphereView, LineagesView, OriginsView, PlanetView, TimelineView } from "./components/Views";
-import { Metric, PanelTitle, Tag, formatAge } from "./components/Primitives";
+import { Metric, formatAge } from "./components/Primitives";
+import { LabView, type SavedExperiment } from "./features/lab/LabView";
+import { makeInitialWizardDraft, SimWizard } from "./features/sim-wizard/SimWizard";
+import { HabitatSimulation } from "./simulation/engine";
+import { makeSeed } from "./simulation/random";
+import { getScenario, scenarioConfiguration } from "./simulation/presets";
+import type {
+  InterventionType, Lineage, OriginConfig, PlannedIntervention, PlanetParams, ScenarioConfiguration,
+  SimulationSummary, TimelineEvent, UserPreset, WizardDraft
+} from "./simulation/types";
+import {
+  createUserPreset, loadUserPresets, loadWizardDraft, parsePresetJson, persistUserPresets,
+  persistWizardDraft, presetToJson
+} from "./storage/presets";
 
 type ViewId = "planet" | "origins" | "biosphere" | "lineages" | "timeline" | "lab";
-type SavedExperiment = { id: string; title: string; savedAt: string; payload: string };
 
-const STORAGE_KEY = "habitat-sim.experiments.v1";
+const SNAPSHOT_STORAGE_KEY = "habitat-sim.experiments.v1";
 const MAX_IMPORT_BYTES = 1_500_000;
 const SPEEDS = [
-  { label: "0.5 Myr/s", rate: 0.5 },
-  { label: "5 Myr/s", rate: 5 },
-  { label: "25 Myr/s", rate: 25 },
-  { label: "100 Myr/s", rate: 100 },
-  { label: "500 Myr/s", rate: 500 }
+  { label: "0.5 Myr/s", rate: .5 }, { label: "5 Myr/s", rate: 5 }, { label: "25 Myr/s", rate: 25 },
+  { label: "100 Myr/s", rate: 100 }, { label: "500 Myr/s", rate: 500 }
 ];
-
 const NAV_ITEMS: Array<{ id: ViewId; label: string; icon: typeof Home }> = [
-  { id: "planet", label: "Planet", icon: Home },
-  { id: "origins", label: "Origins", icon: Atom },
-  { id: "biosphere", label: "Biosphere", icon: Leaf },
-  { id: "lineages", label: "Lineages", icon: GitBranch },
-  { id: "timeline", label: "Timeline", icon: BookOpen },
-  { id: "lab", label: "Lab", icon: FlaskConical }
+  { id: "planet", label: "Planet", icon: Home }, { id: "origins", label: "Origins", icon: Atom },
+  { id: "biosphere", label: "Biosphere", icon: Leaf }, { id: "lineages", label: "Lineages", icon: GitBranch },
+  { id: "timeline", label: "Timeline", icon: BookOpen }, { id: "lab", label: "Lab", icon: FlaskConical }
 ];
-
-const PARAM_FIELDS: Array<{ key: keyof PlanetParams; label: string; min: number; max: number; step: number; unit?: string }> = [
-  { key: "starMassSolar", label: "Stellar mass", min: .1, max: 2, step: .01, unit: "M⊙" },
-  { key: "starLuminositySolar", label: "Stellar luminosity", min: .003, max: 3, step: .01, unit: "L⊙" },
-  { key: "starTemperatureK", label: "Stellar temperature", min: 2600, max: 7200, step: 10, unit: "K" },
-  { key: "starActivity", label: "Stellar activity", min: 0, max: 1, step: .01 },
-  { key: "orbitalDistanceAu", label: "Orbital distance", min: .03, max: 3, step: .01, unit: "AU" },
-  { key: "orbitalEccentricity", label: "Orbital eccentricity", min: 0, max: .8, step: .001 },
-  { key: "planetMassEarth", label: "Planet mass", min: .2, max: 5, step: .05, unit: "M⊕" },
-  { key: "planetRadiusEarth", label: "Planet radius", min: .5, max: 2, step: .02, unit: "R⊕" },
-  { key: "rotationHours", label: "Rotation period", min: 4, max: 1000, step: 1, unit: "h" },
-  { key: "axialTiltDeg", label: "Axial tilt", min: 0, max: 90, step: .1, unit: "°" },
-  { key: "albedo", label: "Albedo", min: .05, max: .75, step: .01 },
-  { key: "waterInventory", label: "Water inventory", min: 0, max: 1.5, step: .01 },
-  { key: "landFraction", label: "Land fraction", min: 0, max: .95, step: .01 },
-  { key: "coreFraction", label: "Core fraction", min: .05, max: .7, step: .01 },
-  { key: "mantleFraction", label: "Mantle fraction", min: .2, max: .9, step: .01 },
-  { key: "initialHeat", label: "Initial heat", min: 0, max: 1, step: .01 },
-  { key: "radionuclides", label: "Radiogenic heat", min: 0, max: 1, step: .01 },
-  { key: "tectonicMobility", label: "Tectonic mobility", min: 0, max: 1, step: .01 },
-  { key: "impactRate", label: "Background impact rate", min: 0, max: 1, step: .01 },
-  { key: "atmospherePressureBar", label: "Surface pressure", min: .01, max: 20, step: .01, unit: "bar" },
-  { key: "mutationRate", label: "Mutation pressure", min: .02, max: 1, step: .01 },
-  { key: "originDifficulty", label: "Origin difficulty", min: .05, max: 1, step: .01 }
-];
-
-const GAS_KEYS: GasId[] = ["n2", "co2", "h2o", "ch4", "o2", "h2", "nh3", "so2"];
-
-function loadLibrary(): SavedExperiment[] {
-  try {
-    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    return Array.isArray(value) ? value.filter((item) => item && typeof item.payload === "string").slice(0, 12) : [];
-  } catch { return []; }
-}
-
-export function App() {
-  const initialSeed = useRef(makeSeed());
-  const simulationRef = useRef(new HabitatSimulation(initialSeed.current, { ...DEFAULT_PARAMS, seed: initialSeed.current }, DEFAULT_ORIGIN));
-  const workspaceBodyRef = useRef<HTMLDivElement>(null);
-  const [summary, setSummary] = useState<SimulationSummary>(() => simulationRef.current.getSummary());
-  const [view, setView] = useState<ViewId>("planet");
-  const [playing, setPlaying] = useState(false);
-  const [speedIndex, setSpeedIndex] = useState(2);
-  const [selectedLineage, setSelectedLineage] = useState<Lineage | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
-  const [quickIntervention, setQuickIntervention] = useState<InterventionType>("organic-asteroid");
-  const [toast, setToast] = useState("");
-  const [library, setLibrary] = useState<SavedExperiment[]>(loadLibrary);
-
-  const refresh = useCallback(() => setSummary(simulationRef.current.getSummary()), []);
-  const notify = useCallback((message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 2600);
-  }, []);
-
-  useEffect(() => {
-    if (!playing) return;
-    let frame = 0;
-    let previous = performance.now();
-    let lastPaint = previous;
-    const tick = (now: number) => {
-      const elapsed = Math.min(.1, (now - previous) / 1000);
-      previous = now;
-      simulationRef.current.step(SPEEDS[speedIndex].rate * elapsed);
-      if (now - lastPaint > 180) {
-        refresh();
-        lastPaint = now;
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [playing, speedIndex, refresh]);
-
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(library)); }
-    catch { notify("Local storage is unavailable; export important experiments."); }
-  }, [library, notify]);
-
-  useEffect(() => {
-    workspaceBodyRef.current?.scrollTo({ top: 0, left: 0 });
-    window.scrollTo({ top: 0, left: 0 });
-  }, [view]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
-      if (event.code === "Space") { event.preventDefault(); setPlaying((value) => !value); }
-      if (event.key === "ArrowRight") setSpeedIndex((value) => Math.min(SPEEDS.length - 1, value + 1));
-      if (event.key === "ArrowLeft") setSpeedIndex((value) => Math.max(0, value - 1));
-      if (event.key.toLowerCase() === "h") setView("planet");
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  const updateOrigin = (origin: Partial<OriginConfig>) => {
-    simulationRef.current.setOrigin(origin);
-    refresh();
-  };
-
-  const applyQuickIntervention = () => {
-    simulationRef.current.interveneNow(quickIntervention);
-    refresh();
-    setSelectedEvent(simulationRef.current.getSummary().state.timeline[0] || null);
-    notify("Intervention applied and recorded.");
-  };
-
-  const resetExperiment = (seed: string, params: Partial<PlanetParams>, origin?: Partial<OriginConfig>) => {
-    setPlaying(false);
-    simulationRef.current.reset(seed, params, origin);
-    setSelectedLineage(null);
-    setSelectedEvent(null);
-    refresh();
-    setView("planet");
-  };
-
-  const saveExperiment = () => {
-    const payload = simulationRef.current.exportExperiment();
-    const record: SavedExperiment = { id: `${Date.now()}-${summary.seed}`, title: summary.seed.replaceAll("-", " "), savedAt: new Date().toISOString(), payload };
-    setLibrary((items) => [record, ...items.filter((item) => item.title !== record.title)].slice(0, 12));
-    notify("Experiment saved in this browser.");
-  };
-
-  const loadExperiment = (record: SavedExperiment) => {
-    try {
-      simulationRef.current = HabitatSimulation.fromExport(JSON.parse(record.payload));
-      setPlaying(false); refresh(); setView("planet"); notify("Experiment loaded.");
-    } catch { notify("Saved experiment could not be loaded."); }
-  };
-
-  const exportExperiment = () => {
-    const blob = new Blob([simulationRef.current.exportExperiment()], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a"); link.href = url; link.download = `habitat-${summary.seed}.json`; link.click(); URL.revokeObjectURL(url);
-    notify("Experiment exported.");
-  };
-
-  const importExperiment = async (file?: File) => {
-    if (!file) return;
-    if (file.size > MAX_IMPORT_BYTES) return notify("Import rejected: file exceeds 1.5 MB.");
-    try {
-      simulationRef.current = HabitatSimulation.fromExport(JSON.parse(await file.text()));
-      setPlaying(false); refresh(); setView("planet"); notify("Experiment imported.");
-    } catch { notify("Import failed: invalid or unsupported experiment JSON."); }
-  };
-
-  return <main className="app-shell">
-    <aside className="rail" aria-label="Primary navigation">
-      <button className="brand" onClick={() => setView("planet")} aria-label="Habitat Sim home" title="Home (H)"><span><Sparkles size={20}/></span><b>H</b></button>
-      <nav>{NAV_ITEMS.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)} aria-label={label} aria-current={view === id ? "page" : undefined} title={label}><Icon size={19}/><span>{label}</span></button>)}</nav>
-      <div className="rail-foot"><span>model</span><strong>v1.0</strong></div>
-    </aside>
-
-    <section className="workspace">
-      <header className="workspace-head">
-        <div><span className="eyebrow"><i className="live-beacon"/> Habitat Sim / {view} / deterministic observatory</span><h1>{summary.diagnostic.title}</h1></div>
-        <div className="head-stats"><Metric label="Age" value={formatAge(summary.ageMyr)} /><Metric label="Habitability" value={`${(summary.habitabilityScore * 100).toFixed(0)}%`} tone={summary.habitabilityScore > .55 ? "good" : "warn"} /><Metric label="Biosphere" value={summary.biodiversity ? `${summary.biodiversity} lineages` : "sterile"} /></div>
-      </header>
-
-      <div className="workspace-body" ref={workspaceBodyRef}>
-        {view === "planet" && <PlanetView summary={summary} />}
-        {view === "origins" && <OriginsView summary={summary} onOriginChange={updateOrigin} />}
-        {view === "biosphere" && <BiosphereView summary={summary} onSelectLineage={(lineage) => { setSelectedLineage(lineage); setView("lineages"); }} />}
-        {view === "lineages" && <LineagesView summary={summary} selected={selectedLineage} onSelect={setSelectedLineage} />}
-        {view === "timeline" && <TimelineView summary={summary} selected={selectedEvent} onSelect={setSelectedEvent} />}
-        {view === "lab" && <LabView summary={summary} library={library} onReset={resetExperiment} onIntervene={(intervention) => { simulationRef.current.addIntervention(intervention); simulationRef.current.step(.01); refresh(); notify(intervention.scheduledAgeMyr <= summary.ageMyr ? "Intervention applied." : "Intervention scheduled."); }} onSave={saveExperiment} onLoad={loadExperiment} onDelete={(id) => setLibrary((items) => items.filter((item) => item.id !== id))} onExport={exportExperiment} onImport={importExperiment} />}
-      </div>
-
-      <footer className="transport" aria-label="Simulation controls">
-        <div className="transport-main"><button className="play-button" onClick={() => setPlaying((value) => !value)} aria-label={playing ? "Pause simulation" : "Play simulation"}>{playing ? <Pause/> : <Play/>}</button><button onClick={() => { simulationRef.current.step(5); refresh(); }} title="Advance 5 million years"><StepForward/>Step</button><button onClick={() => resetExperiment(summary.seed, summary.state.params, summary.state.origin)}><RotateCcw/>Reset</button><label><Gauge size={17}/><span>Rate</span><select aria-label="Simulation rate" value={speedIndex} onChange={(event) => setSpeedIndex(Number(event.target.value))}>{SPEEDS.map((speed, index) => <option value={index} key={speed.label}>{speed.label}</option>)}</select></label></div>
-        <div className="intervention-bar"><Sparkles size={17}/><select aria-label="Quick intervention" value={quickIntervention} onChange={(event) => setQuickIntervention(event.target.value as InterventionType)}>{INTERVENTION_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><button className="accent-button" onClick={applyQuickIntervention}>Intervene now<ChevronRight size={16}/></button></div>
-        <div className="simulation-state"><i className={playing ? "pulse" : ""}/><span>{playing ? "running" : "paused"}</span><strong>{SPEEDS[speedIndex].label}</strong></div>
-      </footer>
-    </section>
-    <div className={toast ? "toast visible" : "toast"} role="status" aria-live="polite">{toast}</div>
-  </main>;
-}
-
 const INTERVENTION_OPTIONS: Array<[InterventionType, string]> = [
   ["organic-asteroid", "Carbonaceous asteroid"], ["ice-comet", "Ice-rich comet"], ["nutrient-deposition", "Nutrient deposition"],
   ["volcanic-pulse", "Volcanic pulse"], ["stellar-flare", "Stellar flare"], ["quiet-star", "Quiet-star interval"],
@@ -220,58 +39,156 @@ const INTERVENTION_OPTIONS: Array<[InterventionType, string]> = [
   ["custom", "Custom material cargo"]
 ];
 
-function LabView({ summary, library, onReset, onIntervene, onSave, onLoad, onDelete, onExport, onImport }: {
-  summary: SimulationSummary;
-  library: SavedExperiment[];
-  onReset: (seed: string, params: Partial<PlanetParams>, origin?: Partial<OriginConfig>) => void;
-  onIntervene: (intervention: ReturnType<typeof defaultIntervention>) => void;
-  onSave: () => void;
-  onLoad: (record: SavedExperiment) => void;
-  onDelete: (id: string) => void;
-  onExport: () => void;
-  onImport: (file?: File) => void;
-}) {
-  const [seed, setSeed] = useState(summary.seed);
-  const [params, setParams] = useState<PlanetParams>(() => structuredClone(summary.state.params));
-  const [preset, setPreset] = useState("earthlike");
-  const [interventionType, setInterventionType] = useState<InterventionType>("organic-asteroid");
-  const [magnitude, setMagnitude] = useState(.65);
-  const [delay, setDelay] = useState(0);
-  const [cargo, setCargo] = useState({ water: 0, organics: .4, aminoAcids: .2, nucleotides: .1, carbon: .2, phosphorus: .1, iron: .1 });
+function loadSnapshotLibrary(): SavedExperiment[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(SNAPSHOT_STORAGE_KEY) || "[]");
+    return Array.isArray(value) ? value.filter((item) => item && typeof item.payload === "string").slice(0, 12) : [];
+  } catch { return []; }
+}
 
-  useEffect(() => { setSeed(summary.seed); setParams(structuredClone(summary.state.params)); }, [summary.seed, summary.state.params]);
+function downloadText(text: string, filename: string): void {
+  const blob = new Blob([text], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a"); link.href = url; link.download = filename; link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 
-  const applyPreset = (id: string) => {
-    setPreset(id);
-    const patch = PLANET_PRESETS[id].params;
-    setParams(normalizeParams({ ...DEFAULT_PARAMS, ...patch, seed, atmosphere: patch.atmosphere || DEFAULT_PARAMS.atmosphere }));
+function simulationFromConfiguration(configuration: ScenarioConfiguration): HabitatSimulation {
+  const simulation = new HabitatSimulation(configuration.seed, configuration.params, configuration.origin);
+  configuration.interventions.forEach((item) => simulation.addIntervention(item));
+  return simulation;
+}
+
+export function App() {
+  const initialSeed = useRef(makeSeed());
+  const initialConfiguration = useRef(scenarioConfiguration(getScenario("late-hadean-shore"), initialSeed.current));
+  const simulationRef = useRef(simulationFromConfiguration(initialConfiguration.current));
+  const workspaceBodyRef = useRef<HTMLDivElement>(null);
+  const [summary, setSummary] = useState<SimulationSummary>(() => simulationRef.current.getSummary());
+  const [view, setView] = useState<ViewId>("planet");
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [speedIndex, setSpeedIndex] = useState(2);
+  const [selectedLineage, setSelectedLineage] = useState<Lineage | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
+  const [quickIntervention, setQuickIntervention] = useState<InterventionType>("organic-asteroid");
+  const [toast, setToast] = useState("");
+  const [snapshotLibrary, setSnapshotLibrary] = useState<SavedExperiment[]>(loadSnapshotLibrary);
+  const [userPresets, setUserPresets] = useState<UserPreset[]>(loadUserPresets);
+  const [wizardDraft, setWizardDraft] = useState<WizardDraft>(() => loadWizardDraft() ?? makeInitialWizardDraft(initialConfiguration.current));
+
+  const refresh = useCallback(() => setSummary(simulationRef.current.getSummary()), []);
+  const notify = useCallback((message: string) => {
+    setToast(message); window.setTimeout(() => setToast(""), 3000);
+  }, []);
+
+  useEffect(() => {
+    if (!playing || wizardOpen) return;
+    let frame = 0; let previous = performance.now(); let lastPaint = previous;
+    const tick = (now: number) => {
+      const elapsed = Math.min(.1, (now - previous) / 1000); previous = now;
+      simulationRef.current.step(SPEEDS[speedIndex].rate * elapsed);
+      if (now - lastPaint > 180) { refresh(); lastPaint = now; }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, refresh, speedIndex, wizardOpen]);
+
+  useEffect(() => { try { localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshotLibrary)); } catch { notify("Snapshot storage is unavailable; export important runs."); } }, [notify, snapshotLibrary]);
+  useEffect(() => { try { persistUserPresets(userPresets); } catch { notify("Preset storage is unavailable; export important presets."); } }, [notify, userPresets]);
+  useEffect(() => { workspaceBodyRef.current?.scrollTo({ top: 0, left: 0 }); window.scrollTo({ top: 0, left: 0 }); }, [view, wizardOpen]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") { event.preventDefault(); setPlaying(false); setWizardOpen(true); return; }
+      if (wizardOpen) return;
+      if (event.code === "Space") { event.preventDefault(); setPlaying((value) => !value); }
+      if (event.key === "ArrowRight") setSpeedIndex((value) => Math.min(SPEEDS.length - 1, value + 1));
+      if (event.key === "ArrowLeft") setSpeedIndex((value) => Math.max(0, value - 1));
+      if (event.key.toLowerCase() === "h") setView("planet");
+    };
+    window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
+  }, [wizardOpen]);
+
+  const navigate = (next: ViewId) => {
+    if (wizardOpen) { setWizardOpen(false); notify("Wizard draft kept. Reopen it from Lab or Ctrl/Command + N."); }
+    setView(next);
+  };
+  const updateOrigin = (origin: Partial<OriginConfig>) => { simulationRef.current.setOrigin(origin); refresh(); };
+  const applyQuickIntervention = () => {
+    simulationRef.current.interveneNow(quickIntervention); refresh();
+    setSelectedEvent(simulationRef.current.getSummary().state.timeline[0] || null); notify("Intervention applied and recorded.");
+  };
+  const resetExperiment = (seed: string, params: Partial<PlanetParams>, origin?: Partial<OriginConfig>, interventions: PlannedIntervention[] = []) => {
+    setPlaying(false); simulationRef.current.reset(seed, params, origin);
+    interventions.forEach((item) => simulationRef.current.addIntervention(item));
+    setSelectedLineage(null); setSelectedEvent(null); refresh(); setView("planet");
+  };
+  const saveSnapshot = () => {
+    const payload = simulationRef.current.exportExperiment();
+    const record: SavedExperiment = { id: `${Date.now()}-${summary.seed}`, title: summary.seed.replaceAll("-", " "), savedAt: new Date().toISOString(), payload };
+    setSnapshotLibrary((items) => [record, ...items.filter((item) => item.title !== record.title)].slice(0, 12)); notify("Simulation snapshot saved in this browser.");
+  };
+  const loadSnapshot = (record: SavedExperiment) => {
+    try { simulationRef.current = HabitatSimulation.fromExport(JSON.parse(record.payload)); setPlaying(false); refresh(); setView("planet"); notify("Simulation snapshot loaded."); }
+    catch { notify("Saved snapshot could not be loaded."); }
+  };
+  const exportExperiment = () => { downloadText(simulationRef.current.exportExperiment(), `habitat-${summary.seed}.json`); notify("Simulation snapshot exported."); };
+  const importExperiment = async (file?: File) => {
+    if (!file) return; if (file.size > MAX_IMPORT_BYTES) return notify("Import rejected: file exceeds 1.5 MB.");
+    try { simulationRef.current = HabitatSimulation.fromExport(JSON.parse(await file.text())); setPlaying(false); refresh(); setView("planet"); notify("Simulation snapshot imported."); }
+    catch { notify("Import failed: invalid or unsupported experiment JSON."); }
   };
 
-  const updateParam = (key: keyof PlanetParams, value: number) => setParams((current) => normalizeParams({ ...current, [key]: value }));
+  const updateWizardDraft = useCallback((draft: WizardDraft) => {
+    setWizardDraft(draft);
+    try { persistWizardDraft(draft); } catch { notify("Wizard draft could not be persisted; export a preset before leaving."); }
+  }, [notify]);
+  const launchConfiguration = (configuration: ScenarioConfiguration, sourcePresetId: string) => {
+    resetExperiment(configuration.seed, configuration.params, configuration.origin, configuration.interventions);
+    const cleanDraft = { ...wizardDraft, sourcePresetId, configuration: structuredClone(configuration), dirty: false, updatedAt: new Date().toISOString() };
+    setWizardDraft(cleanDraft); try { persistWizardDraft(cleanDraft); } catch { /* surfaced by subsequent edits */ }
+    setWizardOpen(false); notify("Reviewed world launched with its deterministic intervention plan.");
+  };
+  const savePreset = (configuration: ScenarioConfiguration, name: string, sourcePresetId: string, existing?: UserPreset) => {
+    const builtInParent = getScenario(sourcePresetId).id === sourcePresetId ? sourcePresetId : existing?.basePresetId ?? sourcePresetId;
+    const preset = createUserPreset(configuration, name, `Custom configuration derived from ${builtInParent}.`, builtInParent, existing);
+    setUserPresets((items) => [preset, ...items.filter((item) => item.id !== preset.id)]); notify(existing ? "Custom preset updated." : "Custom preset saved.");
+  };
+  const duplicatePreset = (preset: UserPreset) => {
+    const copy = createUserPreset(preset.configuration, `${preset.name} copy`, preset.description, preset.basePresetId ?? preset.id);
+    setUserPresets((items) => [copy, ...items]); notify("Preset duplicated.");
+  };
+  const exportPreset = (preset: UserPreset) => { downloadText(presetToJson(preset), `${preset.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}.habitat-preset.json`); notify("Preset exported with metadata and configuration."); };
+  const importPreset = async (file?: File) => {
+    if (!file) return;
+    try {
+      const imported = parsePresetJson(await file.text());
+      const conflict = userPresets.some((item) => item.id === imported.id || item.name.toLowerCase() === imported.name.toLowerCase());
+      const preset = conflict ? createUserPreset(imported.configuration, `${imported.name} (imported)`, imported.description, imported.basePresetId) : imported;
+      setUserPresets((items) => [preset, ...items]); notify(conflict ? "Preset imported as a separate copy to preserve both versions." : "Preset imported.");
+    } catch (error) { notify(error instanceof Error ? error.message : "Preset import failed."); }
+  };
 
-  return <section className="lab-layout" data-testid="lab-view">
-    <div className="lab-column">
-      <PanelTitle eyebrow="Experiment builder" title="Planet and star" aside={<Tag tone="coarse">reset required</Tag>} />
-      <div className="field-row"><label><span>Seed</span><input value={seed} onChange={(event) => setSeed(event.target.value)} /></label><button onClick={() => setSeed(makeSeed())}>Randomize</button></div>
-      <label className="select-field"><span>Planet preset</span><select value={preset} onChange={(event) => applyPreset(event.target.value)}>{Object.entries(PLANET_PRESETS).map(([id, item]) => <option value={id} key={id}>{item.label}</option>)}</select><small>{PLANET_PRESETS[preset].description}</small></label>
-      <div className="parameter-grid">{PARAM_FIELDS.map((field) => <label className="range-field" key={field.key}><span>{field.label}<strong>{Number(params[field.key]).toFixed(field.step < .1 ? 2 : 0)} {field.unit}</strong></span><input type="range" min={field.min} max={field.max} step={field.step} value={Number(params[field.key])} onChange={(event) => updateParam(field.key, Number(event.target.value))} /></label>)}</div>
-      <PanelTitle eyebrow="Initial atmosphere" title="Gas fractions" />
-      <div className="gas-grid">{GAS_KEYS.map((gas) => <label key={gas}><span>{gas.toUpperCase()}</span><input type="number" min="0" max="1" step="0.001" value={params.atmosphere[gas].toFixed(3)} onChange={(event) => setParams((current) => normalizeParams({ ...current, atmosphere: { ...current.atmosphere, [gas]: Number(event.target.value) } }))} /></label>)}</div>
-      <button className="primary wide" onClick={() => onReset(seed, params, PLANET_PRESETS[preset].origin)}><Activity/>Generate planet</button>
-    </div>
+  return <main className="app-shell">
+    <aside className="rail" aria-label="Primary navigation">
+      <button className="brand" onClick={() => navigate("planet")} aria-label="Habitat Sim home" title="Home (H)"><span><Sparkles size={20}/></span><b>H</b></button>
+      <nav>{NAV_ITEMS.map(({id,label,icon:Icon}) => <button key={id} className={!wizardOpen&&view===id?"active":""} onClick={()=>navigate(id)} aria-label={label} aria-current={!wizardOpen&&view===id?"page":undefined} title={label}><Icon size={19}/><span>{label}</span></button>)}</nav>
+      <div className="rail-foot"><span>model</span><strong>v1.1</strong></div>
+    </aside>
 
-    <div className="lab-column">
-      <PanelTitle eyebrow="Event composer" title="Intervene during history" aside={<Tag tone={interventionType.includes("seed") || interventionType.includes("spores") ? "speculative" : "coarse"}>{interventionType.includes("seed") || interventionType.includes("spores") ? "speculative" : "coarse"}</Tag>} />
-      <label className="select-field"><span>Intervention</span><select value={interventionType} onChange={(event) => setInterventionType(event.target.value as InterventionType)}>{INTERVENTION_OPTIONS.map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
-      <label className="range-field"><span>Magnitude<strong>{Math.round(magnitude * 100)}%</strong></span><input type="range" min=".05" max="1" step=".01" value={magnitude} onChange={(event) => setMagnitude(Number(event.target.value))} /></label>
-      <label className="range-field"><span>Delay from current age<strong>{delay.toFixed(0)} Myr</strong></span><input type="range" min="0" max="1000" step="10" value={delay} onChange={(event) => setDelay(Number(event.target.value))} /></label>
-      {interventionType === "custom" && <div className="cargo-grid">{Object.entries(cargo).map(([key, value]) => <label key={key}><span>{key.replaceAll(/([A-Z])/g, " $1")}</span><input aria-label={`Cargo ${key}`} type="number" min="0" max="1" step="0.05" value={value} onChange={(event) => setCargo((current) => ({...current, [key]: Math.max(0, Math.min(1, Number(event.target.value) || 0))}))}/></label>)}</div>}
-      <button className="accent-button wide" onClick={() => { const intervention = defaultIntervention(interventionType, summary.ageMyr + delay, summary.state.interventions.length + 1); intervention.magnitude = magnitude; if (interventionType === "custom") intervention.cargo = cargo; onIntervene(intervention); }}><Sparkles/> {delay ? "Schedule intervention" : "Apply intervention now"}</button>
-      <p className="model-note">Biological cargo faces survival gates. Fungal spores require an oxygenated, wet, food-bearing biosphere; their arrival is explicitly speculative.</p>
+    <section className={wizardOpen ? "workspace wizard-active" : "workspace"}>
+      {!wizardOpen && <header className="workspace-head"><div><span className="eyebrow"><i className="live-beacon"/> Habitat Sim / {view} / deterministic observatory</span><h1>{summary.diagnostic.title}</h1></div><div className="head-stats"><Metric label="Age" value={formatAge(summary.ageMyr)}/><Metric label="Habitability" value={`${(summary.habitabilityScore*100).toFixed(0)}%`} tone={summary.habitabilityScore>.55?"good":"warn"}/><Metric label="Biosphere" value={summary.biodiversity?`${summary.biodiversity} lineages`:"sterile"}/></div></header>}
+      <div className={wizardOpen ? "workspace-body wizard-body" : "workspace-body"} ref={workspaceBodyRef}>
+        {wizardOpen ? <SimWizard initialDraft={wizardDraft} userPresets={userPresets} onDraftChange={updateWizardDraft} onClose={()=>{setWizardOpen(false);setView("lab")}} onLaunch={launchConfiguration} onSavePreset={savePreset} onDuplicatePreset={duplicatePreset} onDeletePreset={(preset)=>setUserPresets((items)=>items.filter((item)=>item.id!==preset.id))} onRestorePreset={(preset)=>setUserPresets((items)=>[preset,...items.filter((item)=>item.id!==preset.id)])} onExportPreset={exportPreset} onImportPreset={importPreset}/>
+        : <>{view==="planet"&&<PlanetView summary={summary}/>} {view==="origins"&&<OriginsView summary={summary} onOriginChange={updateOrigin}/>} {view==="biosphere"&&<BiosphereView summary={summary} onSelectLineage={(lineage)=>{setSelectedLineage(lineage);setView("lineages")}}/>} {view==="lineages"&&<LineagesView summary={summary} selected={selectedLineage} onSelect={setSelectedLineage}/>} {view==="timeline"&&<TimelineView summary={summary} selected={selectedEvent} onSelect={setSelectedEvent}/>} {view==="lab"&&<LabView summary={summary} library={snapshotLibrary} customPresetCount={userPresets.length} onOpenWizard={()=>{setPlaying(false);setWizardOpen(true)}} onReset={resetExperiment} onIntervene={(intervention)=>{simulationRef.current.addIntervention(intervention);simulationRef.current.step(.01);refresh();notify(intervention.scheduledAgeMyr<=summary.ageMyr?"Intervention applied.":"Intervention scheduled.")}} onSave={saveSnapshot} onLoad={loadSnapshot} onDelete={(id)=>setSnapshotLibrary((items)=>items.filter((item)=>item.id!==id))} onExport={exportExperiment} onImport={importExperiment}/>}</>}
+      </div>
 
-      <PanelTitle eyebrow="Experiment library" title="Local records" />
-      <div className="library-actions"><button onClick={onSave}><Save/>Save</button><button onClick={onExport}><Download/>Export</button><label className="file-button"><Upload/>Import<input type="file" accept="application/json,.json" onChange={(event) => onImport(event.target.files?.[0])}/></label></div>
-      <div className="saved-list">{library.map((record) => <article key={record.id}><span><strong>{record.title}</strong><small>{new Date(record.savedAt).toLocaleString()}</small></span><div><button onClick={() => onLoad(record)}>Load</button><button className="danger" onClick={() => onDelete(record.id)}><CircleStop/>Delete</button></div></article>)}{!library.length && <p className="model-note">No saved experiments. Saved data remains in this browser unless exported.</p>}</div>
-    </div>
-  </section>;
+      {!wizardOpen && <footer className="transport" aria-label="Simulation controls"><div className="transport-main"><button className="play-button" onClick={()=>setPlaying((value)=>!value)} aria-label={playing?"Pause simulation":"Play simulation"}>{playing?<Pause/>:<Play/>}</button><button onClick={()=>{simulationRef.current.step(5);refresh()}} title="Advance 5 million years"><StepForward/>Step</button><button onClick={()=>resetExperiment(summary.seed,summary.state.params,summary.state.origin)}><RotateCcw/>Reset</button><label><Gauge size={17}/><span>Rate</span><select aria-label="Simulation rate" value={speedIndex} onChange={(event)=>setSpeedIndex(Number(event.target.value))}>{SPEEDS.map((speed,index)=><option value={index} key={speed.label}>{speed.label}</option>)}</select></label></div><div className="intervention-bar"><Sparkles size={17}/><select aria-label="Quick intervention" value={quickIntervention} onChange={(event)=>setQuickIntervention(event.target.value as InterventionType)}>{INTERVENTION_OPTIONS.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select><button className="accent-button" onClick={applyQuickIntervention}>Intervene now<ChevronRight size={16}/></button></div><div className="simulation-state"><i className={playing?"pulse":""}/><span>{playing?"running":"paused"}</span><strong>{SPEEDS[speedIndex].label}</strong></div></footer>}
+    </section>
+    <div className={toast?"toast visible":"toast"} role="status" aria-live="polite">{toast}</div>
+  </main>;
 }

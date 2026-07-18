@@ -11,18 +11,23 @@ export function hashString(input: string): number {
   return hash >>> 0;
 }
 
-export function mulberry32(seed: number): () => number {
+export type RandomSource = (() => number) & { snapshot: () => number; restore: (state: number) => void };
+
+export function mulberry32(seed: number): RandomSource {
   let value = seed >>> 0;
-  return () => {
-    value += 0x6d2b79f5;
+  const random = (() => {
+    value = (value + 0x6d2b79f5) >>> 0;
     let result = value;
     result = Math.imul(result ^ (result >>> 15), result | 1);
     result ^= result + Math.imul(result ^ (result >>> 7), result | 61);
     return ((result ^ (result >>> 14)) >>> 0) / 4294967296;
-  };
+  }) as RandomSource;
+  random.snapshot = () => value >>> 0;
+  random.restore = (state: number) => { value = Number.isFinite(state) ? state >>> 0 : seed >>> 0; };
+  return random;
 }
 
-export function makeRandom(seed: string): () => number {
+export function makeRandom(seed: string): RandomSource {
   return mulberry32(hashString(seed));
 }
 
@@ -45,4 +50,3 @@ export function pickWeighted<T>(random: () => number, options: Array<[T, number]
 export function vary(random: () => number, value: number, range: number): number {
   return value + (random() * 2 - 1) * range;
 }
-

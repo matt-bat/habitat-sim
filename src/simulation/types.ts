@@ -1,7 +1,7 @@
 export type EvidenceClass = "grounded" | "coarse" | "speculative";
 export type GasId = "n2" | "co2" | "h2o" | "ch4" | "o2" | "h2" | "nh3" | "so2";
 export type ElementId = "carbon" | "hydrogen" | "nitrogen" | "oxygen" | "phosphorus" | "sulfur" | "iron";
-export type OriginTheoryId = "pond" | "hydrothermal" | "atmospheric" | "exogenous" | "lithopanspermia" | "custom";
+export type OriginTheoryId = "pond" | "rna-first" | "hydrothermal" | "atmospheric" | "uv-network" | "ice-eutectic" | "mineral-template" | "lipid-first" | "exogenous" | "lithopanspermia" | "custom";
 export type LifeStage = "protocell" | "simple-cell" | "complex-cell" | "colony" | "multicellular" | "complex-organism";
 export type Metabolism = "phototroph" | "chemotroph" | "heterotroph" | "mixotroph" | "decomposer";
 export type TrophicRole = "producer" | "herbivore" | "carnivore" | "omnivore" | "decomposer" | "parasite" | "generalist";
@@ -20,7 +20,12 @@ export type StructureId =
   | "circulatory-system"
   | "respiratory-system"
   | "locomotor-system"
-  | "reproductive-system";
+  | "reproductive-system"
+  | "osmoregulatory-system"
+  | "support-system"
+  | "excretory-system"
+  | "immune-system"
+  | "neural-system";
 
 export type InterventionType =
   | "organic-asteroid"
@@ -37,12 +42,25 @@ export type InterventionType =
 export type Atmosphere = Record<GasId, number>;
 export type ElementalBasis = Record<ElementId, number>;
 
+export type ScenarioCategory = "earth-history" | "plausible" | "experimental" | "user";
+export type ModelFit = "native" | "proxy" | "outside-model";
+export type StarTopology = "single" | "circumbinary" | "hierarchical-triple";
+
 export type PlanetParams = {
   seed: string;
+  biochemistryMode: "aqueous-carbon" | "unsupported-alternative";
+  starCount: number;
+  starTopology: StarTopology;
   starMassSolar: number;
   starLuminositySolar: number;
   starTemperatureK: number;
   starActivity: number;
+  starAgeGyr: number;
+  companionMassSolar: number;
+  companionLuminositySolar: number;
+  companionTemperatureK: number;
+  companionDistanceAu: number;
+  companionVariability: number;
   orbitalDistanceAu: number;
   orbitalEccentricity: number;
   planetMassEarth: number;
@@ -60,6 +78,7 @@ export type PlanetParams = {
   impactRate: number;
   atmospherePressureBar: number;
   atmosphere: Atmosphere;
+  elementBasis: ElementalBasis;
   mutationRate: number;
   originDifficulty: number;
 };
@@ -83,6 +102,80 @@ export type Intervention = {
   magnitude: number;
   cargo: Partial<Record<ElementId | "water" | "organics" | "aminoAcids" | "nucleotides" | "microbes" | "spores", number>>;
   applied: boolean;
+};
+
+export type PlannedIntervention = Omit<Intervention, "id" | "applied">;
+
+export type ScientificSource = {
+  id: string;
+  title: string;
+  attribution: string;
+  year: number;
+  url: string;
+  kind: "primary" | "review" | "reference";
+};
+
+export type ScenarioDefinition = {
+  schemaVersion: 1;
+  modelVersion: "1.1";
+  id: string;
+  label: string;
+  subtitle: string;
+  description: string;
+  category: Exclude<ScenarioCategory, "user">;
+  evidence: EvidenceClass;
+  modelFit: ModelFit;
+  confidenceNote: string;
+  tags: string[];
+  sourceIds: string[];
+  caveats: string[];
+  params: Partial<PlanetParams>;
+  origin: Partial<OriginConfig>;
+  interventions: PlannedIntervention[];
+};
+
+export type ScenarioConfiguration = {
+  seed: string;
+  params: PlanetParams;
+  origin: OriginConfig;
+  interventions: PlannedIntervention[];
+  runHorizonMyr: number;
+};
+
+export type UserPreset = {
+  schemaVersion: 1;
+  modelVersion: "1.1";
+  id: string;
+  ownership: "user";
+  name: string;
+  description: string;
+  category: "user";
+  evidence: EvidenceClass;
+  basePresetId?: string;
+  createdAt: string;
+  updatedAt: string;
+  configuration: ScenarioConfiguration;
+};
+
+export type WizardDraft = {
+  schemaVersion: 1;
+  sourcePresetId: string;
+  selectedCategory: ScenarioCategory | "all";
+  configuration: ScenarioConfiguration;
+  dirty: boolean;
+  updatedAt: string;
+};
+
+export type GuidanceTone = "positive" | "attention" | "critical" | "neutral";
+export type ScienceGuidance = {
+  id: string;
+  title: string;
+  summary: string;
+  causalChain: string;
+  evidence: EvidenceClass;
+  tone: GuidanceTone;
+  sourceIds: string[];
+  modelBoundary: string;
 };
 
 export type InteriorState = {
@@ -236,17 +329,96 @@ export type LimitingFactor = {
 export type PlanetObservables = {
   gravityEarth: number;
   escapeVelocityKmS: number;
+  bulkDensityGcm3: number;
   orbitalPeriodDays: number;
+  periapsisAu: number;
+  apoapsisAu: number;
+  periapsisFlux: number;
+  apoapsisFlux: number;
+  primaryStellarFlux: number;
+  companionStellarFlux: number;
+  companionFluxFraction: number;
+  multiStarVariabilityIndex: number;
+  stellarArchitecture: StarTopology;
+  orbitalForcingAmplitude: number;
+  solarDayHours: number;
+  rotationOrbitRatio: number;
   equilibriumTemperatureC: number;
   greenhouseDeltaC: number;
+  absorbedStellarWm2: number;
+  effectiveAlbedo: number;
+  cloudCoverIndex: number;
+  hydrologicalCycleIndex: number;
+  climateBufferIndex: number;
+  climateRegime: "snowball" | "cold-arid" | "temperate" | "warm-humid" | "moist-greenhouse" | "hothouse";
+  snowballRisk: number;
+  runawayGreenhouseRisk: number;
+  atmosphericCollapseRisk: number;
   habitableZoneInnerFlux: number;
   habitableZoneOuterFlux: number;
+  stellarClass: "M" | "K" | "G" | "F" | "A";
+  stellarMainSequenceLifetimeGyr: number;
+  stellarAgeFraction: number;
+  highEnergyFluxIndex: number;
+  photosyntheticPhotonIndex: number;
   atmosphericRetentionIndex: number;
   climateStabilityIndex: number;
   redoxDisequilibriumIndex: number;
   tidalLockingRisk: "low" | "moderate" | "high";
+  tectonicRegime: "stagnant lid" | "episodic lid" | "mobile lid";
+  internalHeatFluxIndex: number;
+  weatheringFluxIndex: number;
+  seafloorWeatheringIndex: number;
+  outgassingFluxIndex: number;
+  carbonCycleBalance: number;
+  phosphorusAccess: number;
+  nitrogenAccess: number;
+  ironAccess: number;
+  abioticOxygenRisk: number;
+  greenhouseContributionsC: Partial<Record<GasId | "pressure", number>>;
   oxygenicProduction: number;
   oxygenSinks: number;
+};
+
+export type OriginGateId = "feedstock" | "energy" | "concentration" | "catalysis" | "compartment" | "heredity";
+
+export type OriginGate = {
+  id: OriginGateId;
+  label: string;
+  score: number;
+  detail: string;
+  confidence: EvidenceClass;
+};
+
+export type OriginDiagnostics = {
+  gates: OriginGate[];
+  limitingGate: OriginGate;
+  readiness: number;
+  degradationPressure: number;
+  opportunityRatePerMyr: number;
+  deliverySurvivalIndex: number;
+};
+
+export type EcosystemDiagnostics = {
+  shannonDiversity: number;
+  evenness: number;
+  foodWebConnectance: number;
+  meanTrophicLevel: number;
+  primaryProductivityIndex: number;
+  recyclingEfficiency: number;
+  extinctionPressure: number;
+  ecologicalComplexity: number;
+};
+
+export type LineageDiagnostics = {
+  environmentalFit: number;
+  energyAcquisition: number;
+  maintenanceBurden: number;
+  realizedEnergy: number;
+  nicheBreadth: number;
+  selectionPressure: number;
+  trophicLevel: number;
+  ecologicalImpact: number;
 };
 
 export type SimulationSummary = {
@@ -264,6 +436,9 @@ export type SimulationSummary = {
   biodiversity: number;
   oxygenPercent: number;
   observables: PlanetObservables;
+  originDiagnostics: OriginDiagnostics;
+  ecosystem: EcosystemDiagnostics;
+  lineageDiagnostics: Record<string, LineageDiagnostics>;
   limitingFactors: LimitingFactor[];
   diagnostic: { title: string; detail: string };
 };

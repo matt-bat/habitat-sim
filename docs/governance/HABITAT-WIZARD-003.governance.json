@@ -1,0 +1,107 @@
+{
+  "task_id": "HABITAT-WIZARD-003",
+  "project_id": "habitat-sim",
+  "created_at_utc": "2026-07-17T20:49:19.651626+00:00",
+  "profile": "production",
+  "project_language": "TypeScript",
+  "project_description_max4": "Planetary life evolution sandbox",
+  "model_runs_test_build_default": "yes",
+  "execution_scope": "deployment",
+  "deployment_requested": true,
+  "execution_skill": "pseudo-agentic-automation",
+  "behavior_or_workflow_changed": true,
+  "scores": {
+    "data_impact": 1,
+    "business_impact": 3,
+    "change_complexity": 3,
+    "dependency_uncertainty": 2,
+    "recoverability": 1
+  },
+  "total_score": 10,
+  "base_mode": "critical",
+  "mode_after_profile": "critical",
+  "selected_mode": "critical",
+  "critical_overrides": [
+    "production_security_or_runtime_boundary_change"
+  ],
+  "required_gates": [
+    "order-of-operations",
+    "project-backup",
+    "restore-drill",
+    "pseudo-agentic-automation",
+    "regression-prevention",
+    "token-reduction",
+    "doc-maintenance"
+  ],
+  "gate_status": {
+    "order-of-operations": "pass",
+    "project-backup": "pass",
+    "restore-drill": "pass",
+    "pseudo-agentic-automation": "pending",
+    "regression-prevention": "pass",
+    "token-reduction": "pass",
+    "doc-maintenance": "pass"
+  },
+  "startup_declaration": {
+    "skills_in_use": [
+      "process-budget-controller",
+      "token-reduction",
+      "order-of-operations",
+      "skill-governance",
+      "requirement-clarifier",
+      "thoroughly-rate-review",
+      "interdependent-change-planning",
+      "thoughtful-approach",
+      "ui-design-skills",
+      "ui-spatial-canvas",
+      "regression-prevention",
+      "effective-testing-methods",
+      "pseudo-agentic-automation",
+      "project-backup",
+      "restore-drill",
+      "doc-maintenance",
+      "user-instructions-tracker",
+      "governance-enforcement"
+    ],
+    "skills_selection_rationale": "Critical public scientific product expansion requires multidisciplinary review, reversible persistence, adaptive UX, full responsive browser evidence, recovery, deployment, and durable documentation.",
+    "skills_execution_order": [
+      "process-budget-controller",
+      "token-reduction",
+      "order-of-operations",
+      "skill-governance",
+      "project-backup",
+      "restore-drill",
+      "requirement-clarifier",
+      "thoroughly-rate-review",
+      "user-instructions-tracker",
+      "interdependent-change-planning",
+      "thoughtful-approach",
+      "ui-design-skills",
+      "ui-spatial-canvas",
+      "regression-prevention",
+      "effective-testing-methods",
+      "pseudo-agentic-automation",
+      "doc-maintenance",
+      "governance-enforcement"
+    ]
+  },
+  "evidence_requirements": [
+    "mode + score",
+    "impact map",
+    "validation scope by layer",
+    "residual risks",
+    "backup artifact + integrity evidence",
+    "restore freshness/pass status",
+    "rollback plan",
+    "release decision"
+  ],
+  "break_glass": {
+    "enabled": false,
+    "reason": "",
+    "risk_owner": "",
+    "remediation_ticket": "",
+    "expiry_hours": null
+  },
+  "recommendation": "no-go",
+  "notes": "Stacked review, implementation, adaptive guidance, 27 tests, 20 browser runs, 688 responsive captures, dependency audit, backup, isolated restore, and synchronized release documentation pass. Release remains no-go only until the exact commit is pushed, deployed through GitHub Pages, and verified live."
+}

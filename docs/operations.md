@@ -8,6 +8,8 @@ The source is published at `https://github.com/matt-bat/habitat-sim`. The applic
 
 The model runs unit, build, browser, audit, and recovery checks for production releases. Pull requests and pushes to `main` run the same quality and browser layers through GitHub Actions.
 
+Use `npm run build:pages` followed by `npm run preview:pages` to inspect the exact `/habitat-sim/` repository-subpath build before deployment. The ordinary `npm run preview` command is reserved for the root-base development build.
+
 ## Backup Policy
 
 - Compliance state: `script_only` for the source repository; GitHub provides an additional off-machine Git copy after publication.

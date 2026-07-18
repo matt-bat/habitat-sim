@@ -6,6 +6,8 @@ test("runs the planet, applies an intervention, and drills into history", async 
   await expect(page.getByTestId("planet-view")).toBeVisible();
   await expect(page.getByTestId("planet-view")).toContainText("World intelligence");
   await expect(page.getByTestId("planet-view")).toContainText("Partial pressures");
+  await expect(page.getByTestId("planet-view")).toContainText("Star + orbit");
+  await expect(page.getByTestId("planet-view")).toContainText("Climate regime");
 
   await page.getByRole("button", { name: "Play simulation" }).click();
   await expect(page.getByRole("button", { name: "Pause simulation" })).toBeVisible();
@@ -26,6 +28,8 @@ test("edits an origin protocol and keeps all root views reachable", async ({ pag
   await expect(page.getByTestId("origins-view")).toBeVisible();
   await page.getByRole("button", { name: /Hydrothermal gradients/i }).click();
   await expect(page.getByText("hydrothermal gradients", { exact: false }).first()).toBeVisible();
+  await expect(page.getByTestId("origins-view")).toContainText("Six origin gates");
+  await expect(page.getByTestId("origins-view")).toContainText("Hazard / Myr");
 
   for (const name of ["Biosphere", "Lineages", "Timeline", "Lab", "Planet"]) {
     await page.getByRole("button", { name, exact: true }).click();
@@ -47,10 +51,22 @@ test("composes a custom material intervention with explicit cargo", async ({ pag
 test("builds a new preset and exposes lineage inspection safely when sterile", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Lab" }).click();
-  await page.getByText("Planet preset").locator("..").getByRole("combobox").selectOption("ocean");
-  await page.getByRole("button", { name: /Generate planet/i }).click();
+  await page.getByText("Research scenario").locator("..").getByRole("combobox").selectOption("eoarchean-vents");
+  await expect(page.getByLabel("Initial condition preview")).toContainText("live initial-state preview");
+  await expect(page.getByText("Star system and orbit", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Generate planet from quick editor/i }).click();
   await expect(page.getByTestId("planet-view")).toBeVisible();
   await page.getByRole("button", { name: "Lineages" }).click();
   await expect(page.getByTestId("lineages-view")).toContainText(/Evolution has no starting population|Representative lineage/);
   await expect(page.getByTestId("lineages-view")).toContainText(/functional prerequisites|Structures and capabilities/);
+});
+
+test("keeps every primary workspace within the mobile horizontal viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto("/");
+  for (const name of ["Planet", "Origins", "Biosphere", "Lineages", "Timeline", "Lab"]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    const overflow = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth);
+    expect(overflow, `${name} has horizontal overflow`).toBeLessThanOrEqual(1);
+  }
 });

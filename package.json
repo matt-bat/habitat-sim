@@ -1,6 +1,6 @@
 {
   "name": "habitat-sim",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": false,
   "description": "A deterministic planetary habitability and life-evolution sandbox.",
   "author": "Matt Bateman",
@@ -9,10 +9,21 @@
     "type": "git",
     "url": "git+https://github.com/matt-bat/habitat-sim.git"
   },
-  "homepage": "https://github.com/matt-bat/habitat-sim#readme",
+  "homepage": "https://matt-bat.github.io/habitat-sim/",
   "bugs": {
     "url": "https://github.com/matt-bat/habitat-sim/issues"
   },
+  "keywords": [
+    "astrobiology",
+    "abiogenesis",
+    "exoplanets",
+    "origin-of-life",
+    "evolution",
+    "planetary-science",
+    "simulation",
+    "react",
+    "typescript"
+  ],
   "engines": {
     "node": ">=20.19.0"
   },
@@ -20,7 +31,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "preview": "vite preview",
+    "preview:pages": "vite preview --mode pages --base /habitat-sim/",
     "build": "tsc --noEmit && vite build",
+    "build:pages": "tsc --noEmit && vite build --mode pages",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "playwright test",

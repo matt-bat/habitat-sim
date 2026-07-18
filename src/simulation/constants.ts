@@ -1,3 +1,4 @@
+import { PARAMETER_FIELDS } from "./parameters";
 import type { ElementalBasis, OriginConfig, PlanetParams, StructureId } from "./types";
 
 export const DEFAULT_ELEMENTS: ElementalBasis = {
@@ -12,10 +13,19 @@ export const DEFAULT_ELEMENTS: ElementalBasis = {
 
 export const DEFAULT_PARAMS: PlanetParams = {
   seed: "",
+  biochemistryMode: "aqueous-carbon",
+  starCount: 1,
+  starTopology: "single",
   starMassSolar: 1,
   starLuminositySolar: 1,
   starTemperatureK: 5778,
   starActivity: 0.28,
+  starAgeGyr: 4.6,
+  companionMassSolar: 0.72,
+  companionLuminositySolar: 0.22,
+  companionTemperatureK: 4400,
+  companionDistanceAu: 5,
+  companionVariability: 0.15,
   orbitalDistanceAu: 1,
   orbitalEccentricity: 0.0167,
   planetMassEarth: 1,
@@ -33,6 +43,7 @@ export const DEFAULT_PARAMS: PlanetParams = {
   impactRate: 0.34,
   atmospherePressureBar: 1,
   atmosphere: { n2: 0.72, co2: 0.12, h2o: 0.08, ch4: 0.035, o2: 0.005, h2: 0.02, nh3: 0.01, so2: 0.01 },
+  elementBasis: { ...DEFAULT_ELEMENTS },
   mutationRate: 0.42,
   originDifficulty: 0.58
 };
@@ -48,19 +59,15 @@ export const DEFAULT_ORIGIN: OriginConfig = {
   survivalFraction: 0.02
 };
 
-export const PLANET_PRESETS: Record<string, { label: string; description: string; params: Partial<PlanetParams>; origin?: Partial<OriginConfig> }> = {
-  earthlike: { label: "Temperate analogue", description: "Balanced water, active interior, and a mild young star.", params: {} },
-  ocean: { label: "Pelagic world", description: "Deep ocean with scarce land and weak wet-dry cycling.", params: { waterInventory: 1.15, landFraction: 0.06, atmospherePressureBar: 1.6, tectonicMobility: 0.45 }, origin: { theory: "hydrothermal", ventFlux: 0.88, wetDryCycling: 0.08 } },
-  arid: { label: "Arid mineral world", description: "Sparse water, broad land, and intense surface cycling.", params: { waterInventory: 0.2, landFraction: 0.78, albedo: 0.36, atmospherePressureBar: 0.62 }, origin: { theory: "pond", wetDryCycling: 0.92 } },
-  reducing: { label: "Reducing atmosphere", description: "Hydrogen, methane, and ammonia favor atmospheric chemistry.", params: { atmospherePressureBar: 1.35, atmosphere: { n2: 0.45, co2: 0.08, h2o: 0.1, ch4: 0.16, o2: 0.001, h2: 0.13, nh3: 0.06, so2: 0.01 } }, origin: { theory: "atmospheric", energy: 0.86 } },
-  stagnant: { label: "Stagnant-lid world", description: "Weak recycling and a slowly fading dynamo.", params: { tectonicMobility: 0.08, initialHeat: 0.58, radionuclides: 0.34, coreFraction: 0.24, starActivity: 0.38 } },
-  mdwarf: { label: "Active red-star world", description: "Close orbit with strong flare exposure and tidal rotation.", params: { starMassSolar: 0.34, starLuminositySolar: 0.04, starTemperatureK: 3400, starActivity: 0.9, orbitalDistanceAu: 0.2, orbitalEccentricity: 0.04, rotationHours: 240, atmospherePressureBar: 1.8, coreFraction: 0.38 } }
-};
-
 export const ORIGIN_PRESETS: Record<string, OriginConfig & { label: string; description: string; evidence: "grounded" | "coarse" | "speculative" }> = {
   pond: { ...DEFAULT_ORIGIN, theory: "pond", label: "Wet-dry ponds", description: "Concentration and polymerization in repeated surface cycles.", evidence: "coarse" },
+  "rna-first": { ...DEFAULT_ORIGIN, theory: "rna-first", energy: 0.64, catalysts: 0.7, wetDryCycling: 0.7, ventFlux: 0.15, label: "RNA-first heredity", description: "Nucleotide formation, polymer persistence, and ribozyme-like heredity in concentrating environments.", evidence: "speculative" },
   hydrothermal: { ...DEFAULT_ORIGIN, theory: "hydrothermal", energy: 0.72, catalysts: 0.84, ventFlux: 0.92, wetDryCycling: 0.05, label: "Hydrothermal gradients", description: "Mineral pores and redox gradients around active vents.", evidence: "coarse" },
   atmospheric: { ...DEFAULT_ORIGIN, theory: "atmospheric", energy: 0.9, catalysts: 0.28, wetDryCycling: 0.44, label: "Atmospheric energy", description: "Lightning and ultraviolet energy build organics in a reactive atmosphere.", evidence: "coarse" },
+  "uv-network": { ...DEFAULT_ORIGIN, theory: "uv-network", energy: 0.94, catalysts: 0.58, wetDryCycling: 0.62, ventFlux: 0.1, label: "UV cyanosulfidic network", description: "Ultraviolet-driven reaction networks couple sulfur-bearing feedstocks to precursor synthesis.", evidence: "speculative" },
+  "ice-eutectic": { ...DEFAULT_ORIGIN, theory: "ice-eutectic", energy: 0.34, catalysts: 0.5, wetDryCycling: 0.12, label: "Ice eutectic pockets", description: "Freezing excludes solutes into concentrated liquid films and protects fragile products.", evidence: "speculative" },
+  "mineral-template": { ...DEFAULT_ORIGIN, theory: "mineral-template", energy: 0.5, catalysts: 0.94, wetDryCycling: 0.58, label: "Mineral templates", description: "Reactive mineral surfaces adsorb, organize, and catalyze molecular building blocks.", evidence: "speculative" },
+  "lipid-first": { ...DEFAULT_ORIGIN, theory: "lipid-first", energy: 0.48, catalysts: 0.52, wetDryCycling: 0.68, label: "Lipid-first compartments", description: "Amphiphile-rich cycles favor self-assembled boundaries before robust heredity.", evidence: "speculative" },
   exogenous: { ...DEFAULT_ORIGIN, theory: "exogenous", exogenousDose: 0.9, recurrence: 0.72, label: "Exogenous organics", description: "Asteroids and comets deliver water and prebiotic molecules.", evidence: "grounded" },
   lithopanspermia: { ...DEFAULT_ORIGIN, theory: "lithopanspermia", exogenousDose: 0.65, survivalFraction: 0.12, label: "Lithopanspermia", description: "Rare viable microbes arrive protected inside rock.", evidence: "speculative" },
   custom: { ...DEFAULT_ORIGIN, theory: "custom", label: "Custom protocol", description: "Blend energy, catalysts, cycles, delivery, and survival assumptions.", evidence: "speculative" }
@@ -81,12 +88,15 @@ export const STRUCTURE_INFO: Record<StructureId, { label: string; capability: st
   "circulatory-system": { label: "Transport system", capability: "Moves gases and nutrients through a large body", cost: 0.18, evidence: "coarse" },
   "respiratory-system": { label: "Respiratory surface", capability: "Improves environmental gas exchange", cost: 0.14, evidence: "coarse" },
   "locomotor-system": { label: "Locomotor system", capability: "Pursues food or escapes predators", cost: 0.2, evidence: "coarse" },
-  "reproductive-system": { label: "Specialized reproduction", capability: "Protects and disperses offspring", cost: 0.17, evidence: "coarse" }
+  "reproductive-system": { label: "Specialized reproduction", capability: "Protects and disperses offspring", cost: 0.17, evidence: "coarse" },
+  "osmoregulatory-system": { label: "Osmoregulatory system", capability: "Controls internal water and ion balance", cost: 0.12, evidence: "coarse" },
+  "support-system": { label: "Structural support system", capability: "Supports larger bodies against gravity and motion", cost: 0.16, evidence: "coarse" },
+  "excretory-system": { label: "Waste-processing system", capability: "Removes metabolic waste and stabilizes internal chemistry", cost: 0.14, evidence: "coarse" },
+  "immune-system": { label: "Immune defense network", capability: "Recognizes and contains parasites or damaged tissue", cost: 0.15, evidence: "coarse" },
+  "neural-system": { label: "Central information network", capability: "Integrates sensation, memory, and coordinated action", cost: 0.24, evidence: "coarse" }
 };
 
-export const PARAM_BOUNDS: Partial<Record<keyof PlanetParams, [number, number]>> = {
-  starMassSolar: [0.1, 2], starLuminositySolar: [0.003, 8], starTemperatureK: [2600, 7200], starActivity: [0, 1], orbitalDistanceAu: [0.03, 4], orbitalEccentricity: [0, 0.8],
-  planetMassEarth: [0.2, 5], planetRadiusEarth: [0.5, 2], rotationHours: [4, 1000], axialTiltDeg: [0, 90], albedo: [0.05, 0.75],
-  waterInventory: [0, 1.5], landFraction: [0, 0.95], coreFraction: [0.05, 0.7], mantleFraction: [0.2, 0.9], initialHeat: [0, 1],
-  radionuclides: [0, 1], tectonicMobility: [0, 1], impactRate: [0, 1], atmospherePressureBar: [0.01, 20], mutationRate: [0.02, 1], originDifficulty: [0.05, 1]
-};
+/** Canonical numeric bounds are authored once in the parameter registry used by every editor. */
+export const PARAM_BOUNDS = Object.fromEntries(
+  PARAMETER_FIELDS.map((field) => [field.key, [field.min, field.max] as [number, number]])
+) as Partial<Record<keyof PlanetParams, [number, number]>>;

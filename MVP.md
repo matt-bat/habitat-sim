@@ -4,6 +4,10 @@ Status: locked for the first implementation slice
 Date: 2026-07-17  
 Execution scope: implemented browser release; public source repository
 
+## Post-MVP Amendments
+
+Later explicit directives extended the locked first slice without weakening its original invariants. The production release now includes a public GitHub Pages deployment, a research-cited 19-scenario catalog in place of the early generic preset names, multi-star proxy experiments, separate reusable presets and running snapshots, and an adaptive seven-step Sim Wizard. These are additive production extensions; deterministic replay, coupled state, honest uncertainty, conditional life, evolutionary selection, ecological interaction, and causal drill-in remain the scope anchors.
+
 ## Product Goal
 
 Create a deterministic, scientifically framed planetary-life sandbox where a user can configure one rocky planet in a star's habitable-zone context, test origin-of-life hypotheses, intervene during the run, and inspect how chemistry, environment, selection, ecology, and chance shape evolving lineages.
@@ -113,7 +117,7 @@ A user can create a seeded planet, run or pause geological time, introduce a see
 - Carbon-water life receives the deepest built-in model because it has the strongest empirical basis; custom elemental weights remain exploratory.
 - Rates are calibrated for inspectable comparative runs, not claimed as universal physical constants.
 - Regional geography, literal genomes, exact anatomy, and three-dimensional circulation are deferred.
-- The browser application is implemented and its source is published; hosted deployment remains outside this contract.
+- The original slice did not require hosting; a later explicit directive added verified GitHub Pages deployment.
 - Unit, build, and browser execution ownership remains an open verification question, but it does not change the implementation contract.
 
 ## Open Questions
@@ -147,7 +151,7 @@ A user can create a seeded planet, run or pause geological time, introduce a see
 - Intelligence, civilization, technology, language, or spaceflight progression.
 - Multiplayer, accounts, cloud synchronization, or a public backend.
 - Claims that any displayed alien morphology is scientifically predicted.
-- Deployment or publication.
+- Deployment was an original MVP non-goal and was later superseded by explicit production-release instructions.
 
 ## Deferred After MVP
 

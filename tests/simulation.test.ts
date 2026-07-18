@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ORIGIN, DEFAULT_PARAMS } from "../src/simulation/constants";
+import { DEFAULT_ORIGIN, DEFAULT_PARAMS, ORIGIN_PRESETS } from "../src/simulation/constants";
 import { deterministicFingerprint, HabitatSimulation } from "../src/simulation/engine";
 import { defaultIntervention } from "../src/simulation/interventions";
-import { createSeededLineage } from "../src/simulation/life";
-import { applyAtmosphereFlux, atmospherePartialPressures, habitableZoneFluxLimits, planetObservables, stellarFlux, normalizeParams } from "../src/simulation/planet";
+import { createSeededLineage, ecosystemDiagnostics, lineageDiagnostics } from "../src/simulation/life";
+import { applyAtmosphereFlux, atmospherePartialPressures, habitableZoneFluxLimits, originDiagnostics, planetObservables, stellarFlux, normalizeParams } from "../src/simulation/planet";
 import { makeRandom } from "../src/simulation/random";
 
 describe("HabitatSimulation", () => {
@@ -41,6 +41,32 @@ describe("HabitatSimulation", () => {
     expect(eccentric).toBeGreaterThan(circular);
     expect(sun.inner).toBeCloseTo(1.107, 3);
     expect(coolStar.inner).not.toBeCloseTo(sun.inner, 2);
+  });
+
+  it("exposes orbital extremes, stellar history, climate risks, and nutrient access", () => {
+    const simulation = new HabitatSimulation("systems-world", { ...DEFAULT_PARAMS, seed: "systems-world", orbitalEccentricity: .35, starAgeGyr: .3, starActivity: .8 }, DEFAULT_ORIGIN);
+    const observables = simulation.getSummary().observables;
+    expect(observables.periapsisAu).toBeLessThan(observables.apoapsisAu);
+    expect(observables.periapsisFlux).toBeGreaterThan(observables.apoapsisFlux);
+    expect(observables.orbitalForcingAmplitude).toBeGreaterThan(.5);
+    expect(observables.highEnergyFluxIndex).toBeGreaterThan(.4);
+    expect(observables.absorbedStellarWm2).toBeGreaterThan(0);
+    expect(["snowball", "cold-arid", "temperate", "warm-humid", "moist-greenhouse", "hothouse"]).toContain(observables.climateRegime);
+    for (const value of [observables.phosphorusAccess, observables.nitrogenAccess, observables.ironAccess, observables.snowballRisk, observables.runawayGreenhouseRisk, observables.abioticOxygenRisk]) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("models origin hypotheses as explicit limiting gates and comparative hazards", () => {
+    const simulation = new HabitatSimulation("origin-gates", { ...DEFAULT_PARAMS, seed: "origin-gates" }, ORIGIN_PRESETS["mineral-template"]);
+    simulation.state.chemistry.lipids = .01;
+    const diagnostics = originDiagnostics(simulation.state);
+    expect(diagnostics.gates).toHaveLength(6);
+    expect(diagnostics.gates.map((gate) => gate.id)).toEqual(["feedstock", "energy", "concentration", "catalysis", "compartment", "heredity"]);
+    expect(diagnostics.limitingGate.score).toBe(Math.min(...diagnostics.gates.map((gate) => gate.score)));
+    expect(diagnostics.opportunityRatePerMyr).toBeGreaterThanOrEqual(0);
+    expect(Object.keys(ORIGIN_PRESETS)).toEqual(expect.arrayContaining(["ice-eutectic", "mineral-template", "lipid-first"]));
   });
 
   it("adds gas as partial pressure without displacing existing inventory", () => {
@@ -126,6 +152,14 @@ describe("HabitatSimulation", () => {
     expect(["herbivore", "carnivore", "omnivore", "parasite"]).toContain(evolvedPredator?.trophicRole);
     expect(evolvedPredator?.preyIds).toContain("producer");
     expect(evolvedPredator?.diet.producers).toBeGreaterThan(0);
+    const ecosystem = ecosystemDiagnostics(simulation.state);
+    const predatorDiagnostics = lineageDiagnostics(simulation.state, evolvedPredator!);
+    expect(ecosystem.meanTrophicLevel).toBeGreaterThan(0);
+    expect(ecosystem.shannonDiversity).toBeGreaterThanOrEqual(0);
+    expect(ecosystem.ecologicalComplexity).toBeGreaterThanOrEqual(0);
+    expect(predatorDiagnostics.trophicLevel).toBeGreaterThanOrEqual(2);
+    expect(predatorDiagnostics.maintenanceBurden).toBeGreaterThan(0);
+    expect(predatorDiagnostics.selectionPressure).toBeGreaterThanOrEqual(0);
   });
 
   it("separates oxygenic production from generic photosynthesis", () => {
@@ -158,10 +192,36 @@ describe("HabitatSimulation", () => {
     expect(restored.state.atmospherePressureBar).toBe(DEFAULT_PARAMS.atmospherePressureBar);
   });
 
+  it("bounds finite but impossible imported state values", () => {
+    const simulation = new HabitatSimulation("bounded-import", { ...DEFAULT_PARAMS, seed: "bounded-import" }, DEFAULT_ORIGIN);
+    const payload = JSON.parse(simulation.exportExperiment());
+    payload.state.interior.heat = 9_999;
+    payload.state.surface.temperatureC = -9_999;
+    payload.state.surface.ph = 99;
+    payload.state.chemistry.simpleOrganics = 9_999;
+    payload.state.chemistry.polymers = -4;
+    payload.state.detritusBiomass = 1e30;
+    const restored = HabitatSimulation.fromExport(payload);
+    expect(restored.state.interior.heat).toBe(1);
+    expect(restored.state.surface.temperatureC).toBe(-273.15);
+    expect(restored.state.surface.ph).toBe(14);
+    expect(restored.state.chemistry.simpleOrganics).toBe(3);
+    expect(restored.state.chemistry.polymers).toBe(0);
+    expect(restored.state.detritusBiomass).toBe(1e12);
+  });
+
   it("rejects malformed nested records in imported experiments", () => {
     const simulation = new HabitatSimulation("unsafe-import", { ...DEFAULT_PARAMS, seed: "unsafe-import" }, DEFAULT_ORIGIN);
     const payload = JSON.parse(simulation.exportExperiment());
     payload.state.lineages = [{ id: "incomplete-lineage" }];
+    expect(() => HabitatSimulation.fromExport(payload)).toThrow(/lineages/i);
+  });
+
+  it("rejects unknown imported enum and structure identifiers before rendering", () => {
+    const simulation = new HabitatSimulation("enum-import", { ...DEFAULT_PARAMS, seed: "enum-import" }, DEFAULT_ORIGIN);
+    simulation.state.lineages.push(createSeededLineage(simulation.state, makeRandom("enum-lineage"), "microbial"));
+    const payload = JSON.parse(simulation.exportExperiment());
+    payload.state.lineages[0].structures.push("unknown-organelle");
     expect(() => HabitatSimulation.fromExport(payload)).toThrow(/lineages/i);
   });
 });

@@ -1,11 +1,13 @@
 import { STRUCTURE_INFO } from "./constants";
 import { clamp, pickWeighted, vary } from "./random";
-import { applyAtmosphereFlux, habitabilityScore, prebioticReadiness } from "./planet";
+import { applyAtmosphereFlux, habitabilityScore, originDiagnostics, planetObservables, prebioticReadiness } from "./planet";
 import type {
   ElementalBasis,
+  EcosystemDiagnostics,
   FoodWebLink,
   LifeStage,
   Lineage,
+  LineageDiagnostics,
   LineageTraits,
   Metabolism,
   SimulationState,
@@ -139,10 +141,69 @@ function inferRole(lineage: Lineage): TrophicRole {
   return "generalist";
 }
 
+function trophicLevelFor(lineage: Lineage): number {
+  if (lineage.trophicRole === "producer") return 1;
+  if (lineage.trophicRole === "herbivore" || lineage.trophicRole === "decomposer") return 2;
+  if (lineage.trophicRole === "omnivore" || lineage.trophicRole === "parasite") return 2.5;
+  if (lineage.trophicRole === "carnivore") return 3;
+  return 1.5;
+}
+
+function energyProfile(state: SimulationState, lineage: Lineage, photonIndex = planetObservables(state).photosyntheticPhotonIndex) {
+  const thermalFit = clamp(1 - Math.abs(state.surface.temperatureC - lineage.traits.temperatureOptimum) / Math.max(4, lineage.traits.temperatureTolerance));
+  const radiationFit = clamp(1 - Math.max(0, state.surface.radiation - lineage.traits.radiationResistance));
+  const oxygenFit = lineage.traits.oxygenUse > 0.35 ? clamp(state.atmosphere.o2 * 5.5) : clamp(1 - state.atmosphere.o2 * 0.72);
+  const waterFit = clamp(state.surface.liquidWater * 1.35);
+  const light = (lineage.metabolism === "phototroph" || lineage.metabolism === "mixotroph") ? photonIndex * lineage.traits.photosynthesis : 0;
+  const minerals = lineage.metabolism === "chemotroph" ? state.chemistry.redoxGradient * lineage.traits.chemosynthesis : 0;
+  const detritus = lineage.metabolism === "decomposer" ? Math.min(state.detritusBiomass, lineage.traits.digestion * 0.5 + 0.05) * 0.82 : 0;
+  const organics = (lineage.metabolism === "heterotroph" || lineage.metabolism === "mixotroph") ? state.chemistry.simpleOrganics * lineage.traits.digestion * 0.08 : 0;
+  const energy = light + minerals + detritus + organics;
+  const maintenance = 0.14 + structureCost(lineage) + lineage.traits.size * 0.18 + lineage.traits.mobility * 0.08;
+  return { thermalFit, radiationFit, oxygenFit, waterFit, energy, maintenance, light, minerals };
+}
+
+export function lineageDiagnostics(state: SimulationState, lineage: Lineage, photonIndex?: number): LineageDiagnostics {
+  const profile = energyProfile(state, lineage, photonIndex);
+  const environmentalFit = clamp(profile.thermalFit * 0.34 + profile.radiationFit * 0.22 + profile.oxygenFit * 0.18 + profile.waterFit * 0.26);
+  const realizedEnergy = clamp(profile.energy - profile.maintenance * 0.35);
+  const nicheTraits = [lineage.traits.temperatureTolerance / 65, lineage.traits.radiationResistance, lineage.traits.mobility, lineage.traits.digestion, lineage.traits.photosynthesis, lineage.traits.chemosynthesis];
+  const nicheBreadth = clamp(nicheTraits.reduce((sum, value) => sum + value, 0) / nicheTraits.length);
+  const selectionPressure = clamp(1 - lineage.fitness + state.lineages.length / 48 + state.surface.radiation * 0.16);
+  const ecologicalImpact = clamp(Math.log10(lineage.population + 1) / 8 * 0.44 + clamp(lineage.biomass / 2) * 0.28 + (lineage.preyIds.length / Math.max(1, state.lineages.length)) * 0.28);
+  return {
+    environmentalFit,
+    energyAcquisition: clamp(profile.energy),
+    maintenanceBurden: clamp(profile.maintenance),
+    realizedEnergy,
+    nicheBreadth,
+    selectionPressure,
+    trophicLevel: trophicLevelFor(lineage),
+    ecologicalImpact
+  };
+}
+
+export function ecosystemDiagnostics(state: SimulationState): EcosystemDiagnostics {
+  const biomass = state.lineages.map((lineage) => Math.max(0, lineage.biomass));
+  const total = biomass.reduce((sum, value) => sum + value, 0);
+  const shares = total > 0 ? biomass.filter(Boolean).map((value) => value / total) : [];
+  const shannonDiversity = shares.length ? -shares.reduce((sum, share) => sum + share * Math.log(share), 0) : 0;
+  const evenness = shares.length > 1 ? clamp(shannonDiversity / Math.log(shares.length)) : shares.length ? 1 : 0;
+  const possibleLinks = Math.max(1, state.lineages.length * Math.max(1, state.lineages.length - 1));
+  const foodWebConnectance = clamp(state.foodWeb.length / possibleLinks);
+  const weightedTrophic = total > 0 ? state.lineages.reduce((sum, lineage) => sum + trophicLevelFor(lineage) * lineage.biomass, 0) / total : 0;
+  const primaryProductivityIndex = clamp(state.lineages.reduce((sum, lineage) => sum + ((lineage.metabolism === "phototroph" || lineage.metabolism === "chemotroph" || lineage.metabolism === "mixotroph") ? lineage.biomass * Math.max(lineage.traits.photosynthesis, lineage.traits.chemosynthesis) : 0), 0) / 2);
+  const decomposerCapacity = state.lineages.reduce((sum, lineage) => sum + (lineage.trophicRole === "decomposer" ? lineage.biomass * lineage.traits.digestion : 0), 0);
+  const recyclingEfficiency = clamp(decomposerCapacity / Math.max(0.01, decomposerCapacity + state.detritusBiomass));
+  const extinctionPressure = state.lineages.length ? clamp(state.lineages.filter((lineage) => lineage.fitness < 0.28).length / state.lineages.length * 0.65 + state.surface.radiation * 0.2 + (1 - state.surface.liquidWater) * 0.15) : 0;
+  const ecologicalComplexity = clamp(evenness * 0.22 + foodWebConnectance * 0.2 + clamp(weightedTrophic / 3) * 0.2 + primaryProductivityIndex * 0.2 + recyclingEfficiency * 0.18);
+  return { shannonDiversity, evenness, foodWebConnectance, meanTrophicLevel: weightedTrophic, primaryProductivityIndex, recyclingEfficiency, extinctionPressure, ecologicalComplexity };
+}
+
 function stageFor(lineage: Lineage): LifeStage {
   const has = (structure: StructureId) => lineage.structures.includes(structure);
-  if (has("circulatory-system") && has("sensory-network") && lineage.traits.complexity > 0.82) return "complex-organism";
-  if (has("digestive-system") && lineage.traits.cooperation > 0.7) return "multicellular";
+  if (has("circulatory-system") && has("neural-system") && has("support-system") && lineage.traits.complexity > 0.82) return "complex-organism";
+  if (has("digestive-system") && (has("support-system") || lineage.traits.cooperation > 0.74)) return "multicellular";
   if (lineage.traits.cooperation > 0.56 && lineage.traits.size > 0.2) return "colony";
   if (has("nucleus") && has("mitochondrion")) return "complex-cell";
   if (has("ribosome")) return "simple-cell";
@@ -151,20 +212,27 @@ function stageFor(lineage: Lineage): LifeStage {
 
 function tryStructureInnovation(state: SimulationState, lineage: Lineage, random: () => number, dt: number): StructureId | null {
   const has = (structure: StructureId) => lineage.structures.includes(structure);
+  const hasRespiringPartner = state.lineages.some((candidate) => candidate.id !== lineage.id && candidate.traits.oxygenUse > 0.18 && candidate.population > 1_000);
+  const hasPhototrophicPartner = state.lineages.some((candidate) => candidate.id !== lineage.id && (candidate.metabolism === "phototroph" || candidate.traits.photosynthesis > 0.58) && candidate.population > 1_000);
   const candidates: Array<[StructureId, boolean, number]> = [
     ["ribosome", has("genome") && state.chemistry.polymers > 0.08, 0.75],
     ["cell-wall", lineage.traits.defense > 0.28, 0.35],
     ["flagellum", lineage.traits.mobility > 0.28, 0.32],
-    ["mitochondrion", state.atmosphere.o2 > 0.025 && lineage.population > 50_000, 0.08],
+    ["mitochondrion", hasRespiringPartner && state.atmosphere.o2 > 0.025 && lineage.population > 50_000 && lineage.traits.cooperation > 0.28, 0.045],
     ["nucleus", has("mitochondrion") && lineage.traits.complexity > 0.35, 0.16],
-    ["chloroplast", has("nucleus") && lineage.traits.photosynthesis > 0.52, 0.11],
+    ["chloroplast", hasPhototrophicPartner && has("nucleus") && lineage.traits.cooperation > 0.42, 0.055],
     ["vacuole", has("nucleus") && lineage.traits.complexity > 0.42, 0.28],
     ["digestive-system", lineage.stage === "colony" && lineage.traits.digestion > 0.56, 0.15],
     ["respiratory-system", lineage.stage === "multicellular" && lineage.traits.oxygenUse > 0.6, 0.18],
     ["circulatory-system", lineage.stage === "multicellular" && lineage.traits.size > 0.52 && state.atmosphere.o2 > 0.09, 0.1],
     ["sensory-network", lineage.stage === "multicellular" && lineage.traits.mobility + lineage.traits.predation > 0.88, 0.12],
     ["locomotor-system", lineage.stage === "multicellular" && lineage.traits.mobility > 0.62, 0.14],
-    ["reproductive-system", lineage.stage === "multicellular" && lineage.traits.cooperation > 0.72, 0.12]
+    ["reproductive-system", lineage.stage === "multicellular" && lineage.traits.cooperation > 0.72, 0.12],
+    ["osmoregulatory-system", has("vacuole") && lineage.traits.complexity > 0.48, 0.2],
+    ["support-system", lineage.stage === "colony" && lineage.traits.size > 0.36 && lineage.traits.cooperation > 0.6, 0.13],
+    ["excretory-system", lineage.stage === "multicellular" && has("circulatory-system") && lineage.traits.oxygenUse > 0.5, 0.13],
+    ["immune-system", lineage.stage === "multicellular" && lineage.traits.defense + lineage.traits.parasitism > 0.72, 0.1],
+    ["neural-system", lineage.stage === "multicellular" && has("sensory-network") && lineage.traits.complexity + lineage.traits.mobility > 1.38, 0.075]
   ];
   for (const [structure, eligible, rate] of candidates) {
     if (!has(structure) && eligible && random() < rate * state.params.mutationRate * dt * 0.00045) return structure;
@@ -205,20 +273,20 @@ function makeSpeciation(parent: Lineage, state: SimulationState, random: () => n
 export function evolveLife(state: SimulationState, dtMyr: number, random: () => number): EventDraft[] {
   const events: EventDraft[] = [];
   const dt = Math.min(dtMyr, 25);
-  const readiness = prebioticReadiness(state);
+  const originState = originDiagnostics(state);
+  const readiness = originState.readiness;
 
   if (!state.lineages.length) {
+    if (state.params.biochemistryMode === "unsupported-alternative") return events;
     const threshold = 0.34 + state.params.originDifficulty * 0.25;
     if (readiness > threshold) {
       state.chemistry.protocells = clamp(state.chemistry.protocells + (readiness - threshold) * 0.0015 * dt, 0, 1);
-      const survivalBoost = state.origin.theory === "lithopanspermia" ? state.origin.survivalFraction * state.origin.exogenousDose : 0;
-      const opportunityRate = Math.pow(readiness, 3.5) * (1.05 - state.params.originDifficulty) * 0.0021 + survivalBoost * 0.0004;
-      const chance = 1 - Math.exp(-opportunityRate * dt);
+      const chance = 1 - Math.exp(-originState.opportunityRatePerMyr * dt);
       if (random() < chance) {
         const lineage = createSeededLineage(state, random, "origin");
         state.lineages.push(lineage);
         state.chemistry.protocells = clamp(state.chemistry.protocells + 0.12);
-        events.push({ kind: "origin", title: "First self-maintaining lineage", summary: `${lineage.name} crossed the model's inheritance and metabolism gates.`, detail: "A bounded stochastic transition succeeded because building blocks, solvent stability, energy gradients, and catalytic opportunity overlapped. This does not claim a known historical pathway.", causes: [`Prebiotic readiness ${(readiness * 100).toFixed(0)}%`, `Origin protocol: ${state.origin.theory}`], effects: { lineages: { before: 0, after: 1 }, protocells: { before: 0, after: state.chemistry.protocells } }, affectedLineageIds: [lineage.id], confidence: "speculative", modelNote: "Abiogenesis timing and mechanism remain unresolved; the model treats origin as a gated opportunity, not inevitability." });
+        events.push({ kind: "origin", title: "First self-maintaining lineage", summary: `${lineage.name} crossed the model's inheritance and metabolism gates.`, detail: "A bounded stochastic transition succeeded because feedstock, energy, concentration, catalysis, compartment, and heredity opportunities overlapped. This does not claim a known historical pathway.", causes: [`Readiness ${(readiness * 100).toFixed(0)}%`, `Limiting gate: ${originState.limitingGate.label}`, `Origin protocol: ${state.origin.theory}`], effects: { lineages: { before: 0, after: 1 }, protocells: { before: 0, after: state.chemistry.protocells } }, affectedLineageIds: [lineage.id], confidence: "speculative", modelNote: "Abiogenesis timing and mechanism remain unresolved; the displayed hazard is an internal model rate, not an empirical probability." });
       } else {
         state.failedOriginAttempts += 1;
       }
@@ -232,6 +300,7 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
     lineage.diet = { light: 0, minerals: 0, producers: 0, prey: 0, detritus: 0 };
     lineage.preyIds = [];
   }
+  const photonOpportunity = planetObservables(state).photosyntheticPhotonIndex;
 
   for (const lineage of state.lineages) {
     const thermalFit = clamp(1 - Math.abs(state.surface.temperatureC - lineage.traits.temperatureOptimum) / Math.max(4, lineage.traits.temperatureTolerance));
@@ -240,7 +309,7 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
     const waterFit = clamp(state.surface.liquidWater * 1.35);
     let energy = 0;
     if (lineage.metabolism === "phototroph" || lineage.metabolism === "mixotroph") {
-      const light = clamp(stellarFluxProxy(state) * (1 - state.surface.radiation * 0.2)) * lineage.traits.photosynthesis;
+      const light = clamp(photonOpportunity * (1 - state.surface.radiation * 0.2)) * lineage.traits.photosynthesis;
       lineage.diet.light += light;
       energy += light;
     }
@@ -286,6 +355,26 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
     links.push({ sourceId: consumer.id, targetId: prey.id, relation: consumer.traits.parasitism > 0.62 ? "parasitism" : prey.trophicRole === "producer" ? "grazing" : "predation", energyFlow: consumed });
   }
 
+  for (let first = 0; first < state.lineages.length; first += 1) {
+    for (let second = first + 1; second < state.lineages.length; second += 1) {
+      const a = state.lineages[first];
+      const b = state.lineages[second];
+      const traitDistance = Math.abs(a.traits.temperatureOptimum - b.traits.temperatureOptimum) / 100
+        + Math.abs(a.traits.size - b.traits.size)
+        + Math.abs(a.traits.photosynthesis - b.traits.photosynthesis)
+        + Math.abs(a.traits.chemosynthesis - b.traits.chemosynthesis);
+      const nicheOverlap = clamp(1 - traitDistance / 4) * (a.habitat === b.habitat ? 1 : 0.55);
+      const complementary = (a.metabolism === "phototroph" && b.metabolism === "heterotroph")
+        || (b.metabolism === "phototroph" && a.metabolism === "heterotroph")
+        || a.metabolism === "decomposer" || b.metabolism === "decomposer";
+      if (complementary && a.traits.cooperation + b.traits.cooperation > 1.15) {
+        links.push({ sourceId: a.id, targetId: b.id, relation: "mutualism", energyFlow: Math.min(a.biomass, b.biomass) * nicheOverlap * 0.14 });
+      } else if (nicheOverlap > 0.76 && a.metabolism === b.metabolism) {
+        links.push({ sourceId: a.id, targetId: b.id, relation: "competition", energyFlow: Math.min(a.population, b.population) * nicheOverlap * 0.0002 });
+      }
+    }
+  }
+
   for (let index = state.lineages.length - 1; index >= 0; index -= 1) {
     const lineage = state.lineages[index];
     lineage.trophicRole = inferRole(lineage);
@@ -294,6 +383,10 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
     if (innovation) {
       lineage.structures = [...lineage.structures, innovation];
       lineage.capabilities = capabilitiesFor(lineage.structures, lineage.metabolism);
+      if (innovation === "mitochondrion" || innovation === "chloroplast") {
+        const partner = state.lineages.find((candidate) => candidate.id !== lineage.id && (innovation === "chloroplast" ? candidate.traits.photosynthesis > 0.58 : candidate.traits.oxygenUse > 0.18));
+        if (partner) links.push({ sourceId: lineage.id, targetId: partner.id, relation: "mutualism", energyFlow: Math.min(lineage.biomass, partner.biomass) * 0.25 });
+      }
       events.push({ kind: "evolution", title: `${STRUCTURE_INFO[innovation].label} emerged`, summary: `${lineage.name} gained ${STRUCTURE_INFO[innovation].capability.toLowerCase()}.`, detail: `The structure appeared after its environmental and lineage prerequisites overlapped. It adds capability and a continuing energetic cost of ${STRUCTURE_INFO[innovation].cost.toFixed(2)} model units.`, causes: [lineage.habitat, `Fitness ${lineage.fitness.toFixed(2)}`], effects: { structures: { before: lineage.structures.length - 1, after: lineage.structures.length } }, affectedLineageIds: [lineage.id], confidence: STRUCTURE_INFO[innovation].evidence, modelNote: "The named structure is a functional analogue; morphology is not predicted." });
     }
     lineage.stage = stageFor(lineage);
@@ -339,10 +432,6 @@ export function evolveLife(state: SimulationState, dtMyr: number, random: () => 
   }
   state.foodWeb = links.sort((a, b) => b.energyFlow - a.energyFlow).slice(0, 80);
   return events;
-}
-
-function stellarFluxProxy(state: SimulationState): number {
-  return clamp(state.params.starLuminositySolar / Math.max(0.01, state.params.orbitalDistanceAu ** 2), 0, 2) / 2;
 }
 
 export function dominantStage(lineages: Lineage[]): LifeStage | "sterile" {

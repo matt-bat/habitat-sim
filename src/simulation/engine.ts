@@ -1,7 +1,7 @@
 import { DEFAULT_ORIGIN, DEFAULT_PARAMS } from "./constants";
-import { biosphereDiagnostic, dominantStage, evolveLife, type EventDraft } from "./life";
+import { biosphereDiagnostic, dominantStage, ecosystemDiagnostics, evolveLife, lineageDiagnostics, type EventDraft } from "./life";
 import { applyIntervention, defaultIntervention } from "./interventions";
-import { clamp, hashString, makeRandom } from "./random";
+import { clamp, hashString, makeRandom, type RandomSource } from "./random";
 import {
   habitableZoneStatus,
   habitabilityScore,
@@ -10,15 +10,27 @@ import {
   makeInterior,
   makeSurface,
   normalizeAtmosphere,
+  normalizeElementBasis,
   normalizeParams,
+  originDiagnostics,
   planetObservables,
   prebioticReadiness,
   stellarFlux,
   updatePlanet
 } from "./planet";
-import type { Intervention, InterventionType, OriginConfig, PlanetParams, PlanetSnapshot, SimulationState, SimulationSummary, TimelineEvent } from "./types";
+import type { ChemistryState, InteriorState, Intervention, InterventionType, OriginConfig, PlanetParams, PlanetSnapshot, SimulationState, SimulationSummary, SurfaceState, TimelineEvent } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
+
+const ORIGIN_IDS = new Set(["pond", "rna-first", "hydrothermal", "atmospheric", "uv-network", "ice-eutectic", "mineral-template", "lipid-first", "exogenous", "lithopanspermia", "custom"]);
+const STAGE_IDS = new Set(["protocell", "simple-cell", "complex-cell", "colony", "multicellular", "complex-organism"]);
+const METABOLISM_IDS = new Set(["phototroph", "chemotroph", "heterotroph", "mixotroph", "decomposer"]);
+const TROPHIC_IDS = new Set(["producer", "herbivore", "carnivore", "omnivore", "decomposer", "parasite", "generalist"]);
+const STRUCTURE_IDS = new Set(["membrane", "genome", "ribosome", "cell-wall", "flagellum", "nucleus", "mitochondrion", "chloroplast", "vacuole", "sensory-network", "digestive-system", "circulatory-system", "respiratory-system", "locomotor-system", "reproductive-system", "osmoregulatory-system", "support-system", "excretory-system", "immune-system", "neural-system"]);
+const EVENT_KIND_IDS = new Set(["planet", "chemistry", "origin", "evolution", "ecology", "intervention", "extinction"]);
+const EVIDENCE_IDS = new Set(["grounded", "coarse", "speculative"]);
+const INTERVENTION_IDS = new Set(["organic-asteroid", "ice-comet", "microbial-seed", "fungal-spores", "stellar-flare", "quiet-star", "volcanic-pulse", "nutrient-deposition", "sterilizing-impact", "custom"]);
+const RELATION_IDS = new Set(["predation", "grazing", "competition", "mutualism", "parasitism", "decomposition"]);
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -46,7 +58,8 @@ function isValidLineage(value: unknown): boolean {
     && isFiniteValueRecord(value.traits)
     && isFiniteValueRecord(value.elements)
     && isFiniteValueRecord(value.diet)
-    && isStringArray(value.structures)
+    && STAGE_IDS.has(String(value.stage)) && METABOLISM_IDS.has(String(value.metabolism)) && TROPHIC_IDS.has(String(value.trophicRole))
+    && isStringArray(value.structures) && (value.structures as string[]).every((item) => STRUCTURE_IDS.has(item))
     && isStringArray(value.capabilities)
     && isStringArray(value.preyIds);
 }
@@ -60,6 +73,7 @@ function isValidTimelineEvent(value: unknown): boolean {
     return validDelta(effect.before) && validDelta(effect.after) && (effect.unit === undefined || typeof effect.unit === "string");
   });
   return strings.every((field) => typeof value[field] === "string")
+    && EVENT_KIND_IDS.has(String(value.kind)) && EVIDENCE_IDS.has(String(value.confidence))
     && typeof value.ageMyr === "number" && Number.isFinite(value.ageMyr)
     && isStringArray(value.causes)
     && isStringArray(value.affectedLineageIds)
@@ -69,6 +83,7 @@ function isValidTimelineEvent(value: unknown): boolean {
 function isValidIntervention(value: unknown): boolean {
   return isRecord(value)
     && ["id", "type", "label"].every((field) => typeof value[field] === "string")
+    && INTERVENTION_IDS.has(String(value.type))
     && ["scheduledAgeMyr", "magnitude"].every((field) => typeof value[field] === "number" && Number.isFinite(value[field]))
     && typeof value.applied === "boolean"
     && isFiniteValueRecord(value.cargo);
@@ -91,8 +106,8 @@ function assertImportShape(state: UnknownRecord): void {
     ["lineages", isValidLineage],
     ["timeline", isValidTimelineEvent],
     ["interventions", isValidIntervention],
-    ["foodWeb", (value) => hasFiniteFields(value, ["energyFlow"]) && ["sourceId", "targetId", "relation"].every((field) => typeof value[field] === "string")],
-    ["snapshots", (value) => hasFiniteFields(value, ["ageMyr", "temperatureC", "pressureBar", "oxygen", "liquidWater", "prebioticReadiness", "lineages", "population"]) && typeof value.dominantStage === "string"]
+    ["foodWeb", (value) => hasFiniteFields(value, ["energyFlow"]) && ["sourceId", "targetId", "relation"].every((field) => typeof value[field] === "string") && RELATION_IDS.has(String(value.relation))],
+    ["snapshots", (value) => hasFiniteFields(value, ["ageMyr", "temperatureC", "pressureBar", "oxygen", "liquidWater", "prebioticReadiness", "lineages", "population"]) && (value.dominantStage === "sterile" || STAGE_IDS.has(String(value.dominantStage)))]
   ];
   for (const [field, validator] of arrays) {
     if (state[field] !== undefined && (!Array.isArray(state[field]) || !state[field].every(validator))) throw new Error(`Invalid imported ${field}.`);
@@ -101,6 +116,7 @@ function assertImportShape(state: UnknownRecord): void {
 
 function normalizeOrigin(input?: Partial<OriginConfig>): OriginConfig {
   const origin = { ...DEFAULT_ORIGIN, ...input };
+  if (!ORIGIN_IDS.has(String(origin.theory))) origin.theory = DEFAULT_ORIGIN.theory;
   origin.energy = clamp(Number(origin.energy));
   origin.catalysts = clamp(Number(origin.catalysts));
   origin.wetDryCycling = clamp(Number(origin.wetDryCycling));
@@ -109,6 +125,48 @@ function normalizeOrigin(input?: Partial<OriginConfig>): OriginConfig {
   origin.recurrence = clamp(Number(origin.recurrence));
   origin.survivalFraction = clamp(Number(origin.survivalFraction));
   return origin;
+}
+
+function normalizeImportedInterior(input: InteriorState | undefined, fallback: InteriorState): InteriorState {
+  const source = input ?? fallback;
+  return {
+    heat: clamp(source.heat),
+    coreActivity: clamp(source.coreActivity),
+    magneticShield: clamp(source.magneticShield),
+    volcanism: clamp(source.volcanism),
+    tectonics: clamp(source.tectonics),
+    outgassing: clamp(source.outgassing)
+  };
+}
+
+function normalizeImportedSurface(input: SurfaceState | undefined, fallback: SurfaceState): SurfaceState {
+  const source = input ?? fallback;
+  return {
+    temperatureC: clamp(source.temperatureC, -273.15, 5_000),
+    liquidWater: clamp(source.liquidWater),
+    ice: clamp(source.ice),
+    oceanCoverage: clamp(source.oceanCoverage),
+    landFraction: clamp(source.landFraction),
+    radiation: clamp(source.radiation),
+    nutrients: clamp(source.nutrients),
+    hydrothermalActivity: clamp(source.hydrothermalActivity),
+    wetDryCycling: clamp(source.wetDryCycling),
+    ph: clamp(source.ph, 0, 14)
+  };
+}
+
+function normalizeImportedChemistry(input: ChemistryState | undefined, fallback: ChemistryState): ChemistryState {
+  const source = input ?? fallback;
+  return {
+    elements: normalizeElementBasis(source.elements),
+    simpleOrganics: clamp(source.simpleOrganics, 0, 3),
+    aminoAcids: clamp(source.aminoAcids, 0, 2),
+    lipids: clamp(source.lipids, 0, 2),
+    nucleotides: clamp(source.nucleotides, 0, 2),
+    polymers: clamp(source.polymers, 0, 2),
+    protocells: clamp(source.protocells),
+    redoxGradient: clamp(source.redoxGradient)
+  };
 }
 
 function totalPopulation(state: SimulationState): number {
@@ -121,7 +179,7 @@ function totalBiomass(state: SimulationState): number {
 
 export class HabitatSimulation {
   state: SimulationState;
-  private random: () => number;
+  private random: RandomSource;
   private eventSequence = 0;
   private interventionSequence = 0;
   private lastSnapshotAge = -100;
@@ -242,6 +300,8 @@ export class HabitatSimulation {
     const stage = dominantStage(state.lineages);
     const flux = stellarFlux(state.params);
     const diagnostic = biosphereDiagnostic(state);
+    const originState = originDiagnostics(state);
+    const observables = planetObservables(state);
     return {
       seed: state.params.seed,
       ageMyr: state.ageMyr,
@@ -256,20 +316,23 @@ export class HabitatSimulation {
       totalBiomass: biomass,
       biodiversity: state.lineages.length,
       oxygenPercent: state.atmosphere.o2 * 100,
-      observables: planetObservables(state),
+      observables,
+      originDiagnostics: originState,
+      ecosystem: ecosystemDiagnostics(state),
+      lineageDiagnostics: Object.fromEntries(state.lineages.map((lineage) => [lineage.id, lineageDiagnostics(state, lineage, observables.photosyntheticPhotonIndex)])),
       limitingFactors: limitingFactors(state),
       diagnostic
     };
   }
 
   exportExperiment(): string {
-    return JSON.stringify({ app: "habitat-sim", version: 1, exportedAt: new Date().toISOString(), state: this.state }, null, 2);
+    return JSON.stringify({ app: "habitat-sim", version: 2, modelVersion: "1.1", exportedAt: new Date().toISOString(), randomState: this.random.snapshot(), state: this.state }, null, 2);
   }
 
   static fromExport(payload: unknown): HabitatSimulation {
     if (!isRecord(payload)) throw new Error("Experiment must be an object.");
     const record = payload;
-    if (record.app !== "habitat-sim" || record.version !== 1 || !isRecord(record.state) || !isRecord(record.state.params)) throw new Error("Unsupported Habitat Sim experiment.");
+    if (record.app !== "habitat-sim" || (record.version !== 1 && record.version !== 2) || !isRecord(record.state) || !isRecord(record.state.params)) throw new Error("Unsupported Habitat Sim experiment.");
     assertImportShape(record.state);
     const stateInput = record.state as unknown as Partial<SimulationState>;
     const importedParams = stateInput.params as PlanetParams;
@@ -281,13 +344,13 @@ export class HabitatSimulation {
       params: normalizeParams(stateInput.params),
       origin: normalizeOrigin(stateInput.origin),
       ageMyr: safeAge,
-      interior: structuredClone(stateInput.interior ?? base.interior),
+      interior: normalizeImportedInterior(stateInput.interior, base.interior),
       atmosphere: normalizeAtmosphere(stateInput.atmosphere),
       atmospherePressureBar: Number.isFinite(Number(stateInput.atmospherePressureBar))
         ? clamp(Number(stateInput.atmospherePressureBar), 0.01, 20)
         : base.params.atmospherePressureBar,
-      surface: structuredClone(stateInput.surface ?? base.surface),
-      chemistry: structuredClone(stateInput.chemistry ?? base.chemistry),
+      surface: normalizeImportedSurface(stateInput.surface, base.surface),
+      chemistry: normalizeImportedChemistry(stateInput.chemistry, base.chemistry),
       lineages: structuredClone(stateInput.lineages?.slice(0, 40) ?? []),
       foodWeb: structuredClone(stateInput.foodWeb?.slice(0, 100) ?? []),
       interventions: structuredClone(stateInput.interventions?.slice(0, 200) ?? []),
@@ -296,9 +359,10 @@ export class HabitatSimulation {
       appliedInterventionCount: safeCounter(stateInput.appliedInterventionCount),
       failedOriginAttempts: safeCounter(stateInput.failedOriginAttempts),
       extinctionCount: safeCounter(stateInput.extinctionCount),
-      detritusBiomass: Number.isFinite(Number(stateInput.detritusBiomass)) ? Math.max(0, Number(stateInput.detritusBiomass)) : 0
+      detritusBiomass: Number.isFinite(Number(stateInput.detritusBiomass)) ? clamp(Number(stateInput.detritusBiomass), 0, 1e12) : 0
     };
     simulation.random = makeRandom(`${simulation.state.params.seed}:resume:${safeAge}:${simulation.state.timeline.length}`);
+    if (record.version === 2 && typeof record.randomState === "number" && Number.isFinite(record.randomState)) simulation.random.restore(record.randomState);
     simulation.eventSequence = simulation.state.timeline.length;
     simulation.interventionSequence = simulation.state.interventions.length;
     simulation.lastSnapshotAge = simulation.state.snapshots.at(-1)?.ageMyr ?? safeAge;

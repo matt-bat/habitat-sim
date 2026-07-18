@@ -1,27 +1,36 @@
 # Habitat Sim
 
 [![Quality](https://github.com/matt-bat/habitat-sim/actions/workflows/ci.yml/badge.svg)](https://github.com/matt-bat/habitat-sim/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0-72d5b0)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-72d5b0)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-attribution--required%20non--commercial-d9ad68)](./LICENSE)
 
-Habitat Sim is a deterministic planetary-life sandbox by Matt Bateman. It models one rocky planet as coupled interior, atmosphere, surface, chemistry, population, and ecology systems. Users can test origin-of-life hypotheses, intervene during a run, inspect evolving lineages, and drill into a causal timeline.
+**Live application:** [matt-bat.github.io/habitat-sim](https://matt-bat.github.io/habitat-sim/)
+
+Habitat Sim is a deterministic planetary-life sandbox by Matt Bateman. It models one planet as coupled stellar, orbital, interior, atmosphere, surface, chemistry, population, and ecology systems. Users can build research-framed experiments in a guided Sim Wizard, test origin-of-life hypotheses, intervene during a run, inspect evolving lineages, and drill into a causal timeline.
 
 The project is a comparative explanatory model, not a first-principles geophysics, climate, chemistry, genetics, or anatomy solver. Outputs are labeled as grounded, coarse, or speculative. Habitable-zone placement is context, not proof of habitability or life.
 
 ## Production Capabilities
 
 - Seeded deterministic planet experiments
-- Star effective temperature, eccentric orbit, spectral habitable-zone limits, gravity, escape velocity, orbital period, planetary composition, core, volcanism, tectonics, atmosphere, water, radiation, and nutrient state
-- Partial-pressure atmospheric ledger, real-scale pH proxy, oxygen sources/sinks, persistent detritus, and ranked causal bottlenecks
+- One-, two-, and three-star aggregate forcing experiments; stellar age, spectral class, high-energy history, photosynthetic-light opportunity, eccentric forcing extremes, solar day, spectral habitable-zone limits, gravity, escape velocity, orbital period, density, composition, core, and tectonic regime
+- State-dependent albedo, absorbed stellar energy, partial-pressure greenhouse decomposition, climate regimes, hydrological and climate-buffer indices, snowball/runaway/collapse warnings, and abiotic-oxygen risk
+- Partial-pressure atmospheric ledger, real-scale pH proxy, carbon-cycle balance, land/seafloor weathering, outgassing, separate phosphorus/nitrogen/iron access, oxygen sources/sinks, persistent detritus, and ranked causal bottlenecks
 - Carbon, hydrogen, nitrogen, oxygen, phosphorus, sulfur, iron, organics, amino-acid-like, lipid-like, nucleotide-like, polymer, and protocell reservoirs
-- Wet-dry, hydrothermal, atmospheric-energy, exogenous-organic, lithopanspermia, and custom origin protocols
+- Wet-dry, RNA-first, hydrothermal, atmospheric-energy, ultraviolet-network, ice-eutectic, mineral-template, lipid-first, exogenous-organic, lithopanspermia, and custom origin protocols
+- Six explicit origin gates—feedstock, energy, concentration, catalysis, compartments, and heredity—with degradation, delivery-survival, limiting-gate, and comparative hazard diagnostics
 - Asteroid, comet, microbial, spore, flare, quiet-star, volcanic, nutrient, custom, and sterilizing interventions
-- Population-level mutation, selection, speciation, extinction, functional structures, and staged organization
+- Population-level mutation, selection, speciation, extinction, partner-constrained endosymbiosis, functional organelles/body systems, maintenance costs, and staged organization
 - Emergent producer, herbivore, carnivore, omnivore, decomposer, parasite, and generalist roles
-- Predator/prey and resource-flow links
+- Predator/prey, competition, mutualism, parasitism, grazing, decomposition, and resource-flow links
+- Shannon diversity, evenness, web connectance, trophic level, primary productivity, recycling, extinction pressure, energy surplus, niche breadth, selection pressure, and ecological-impact diagnostics
 - Drillable timeline entries with causes, before/after deltas, confidence, and model notes
-- Local save plus versioned JSON import/export
-- Fixed-frame Spatial Canvas interface with responsive mobile fallback
+- Nineteen immutable research scenarios spanning early-Earth brackets, seven mechanistic/delivery origin experiments, multi-star and M-dwarf systems, Hycean and hydrogen-greenhouse proxies, unusual compositions, and an explicit outside-model methane boundary case
+- Seven-step Sim Wizard with reversible navigation, deterministic plans, adaptive causal guidance, research citations, launch blockers, model-boundary acknowledgement, draft autosave, and immutable built-in versus user-owned preset semantics
+- Editable, duplicable, importable, exportable, and locally persistent user presets kept separate from running simulation snapshots
+- Versioned JSON import/export with bounded validation and exact version-2 random-stream checkpoint resume
+- Purpose-built causal observatory with orbit/climate instrumentation, a six-system ribbon, origin-gate matrix, ecosystem topology, lineage energy accounting, and grouped live-preview experiment controls
+- Fixed-frame Spatial Canvas interface with responsive tablet/mobile adaptation, 44-pixel mobile targets, and a reproducible five-resolution, 44-state scroll-depth screenshot audit
 
 The locked scope and acceptance criteria are in [MVP.md](./MVP.md).
 
@@ -45,6 +54,15 @@ npm run dev
 
 The development server uses `http://127.0.0.1:5174`.
 
+To inspect the exact repository-subpath build used by GitHub Pages:
+
+```sh
+npm run build:pages
+npm run preview:pages
+```
+
+The Pages-form preview is served at `http://127.0.0.1:4174/habitat-sim/`.
+
 ## Validation Commands
 
 ```sh
@@ -62,7 +80,9 @@ npm run screenshots -- artifacts/ui
 ```text
 src/
   components/       interface views and visual primitives
+  features/         Lab and Sim Wizard product flows
   simulation/       deterministic domain model
+  storage/          bounded preset and draft persistence
 tests/
   browser/          Playwright user flows
 docs/               architecture, science, governance, and operations
@@ -91,7 +111,7 @@ See [local operations](./docs/operations.md) for scope, retention, recovery obje
 - Origin probabilities are model assumptions around unresolved science.
 - Imported snapshots resume from a deterministic checkpoint stream but are not a cryptographic audit trail.
 - The simulation remains on the main browser thread for the MVP.
-- No hosted application, backend, accounts, or cloud sync are included; the public repository distributes the browser application source.
+- GitHub Pages hosts the static browser application; no backend, accounts, telemetry, or cloud sync are included.
 
 ## License and Attribution
 
@@ -106,9 +126,13 @@ Security reports should follow [SECURITY.md](./SECURITY.md). Contributions shoul
 - [Protoverse source review](./docs/source-review.md)
 - [Architecture](./docs/architecture.md)
 - [Science and uncertainty](./docs/science-model.md)
+- [Six sequential expert reviews](./docs/expert-review-2026-07-17.md)
+- [Stacked engineering and science review](./docs/engineering-review-2026-07-17.md)
 - [Operations](./docs/operations.md)
 - [Interface quality gate](./docs/ui-quality.md)
 - [Observatory screenshot audit](./docs/ui-audit/2026-07-17.md)
+- [Expert-iteration interface audit](./docs/ui-audit/2026-07-17-expert-iteration.md)
+- [Five-resolution Sim Wizard interface audit](./docs/ui-audit/2026-07-17-sim-wizard.md)
 - [Validation and regression map](./docs/validation.md)
 - [Skill application and policy audit](./docs/skill-application.md)
 - [User instruction tracker](./user-instructions.md)

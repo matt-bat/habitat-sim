@@ -21,6 +21,7 @@
 ## Coverage-to-Change Map
 
 - Unit: parameter normalization, deterministic replay, sterile outcomes, beneficial/harmful interventions, selection/trophic inference, bounded export/import, and malformed-import rejection.
+- Expert iteration: orbital extremes, stellar age/high-energy stress, climate-regime and geochemical bounds, six origin gates, added protocols, ecosystem statistics, trophic level, lineage maintenance and selection diagnostics.
 - Integration: engine tests exercise interior → surface → chemistry → population → food-web → timeline state.
 - Browser: setup/navigation, play/pause, intervention, event drill-in, origin selection, preset generation, and safe lineage empty/detail state.
 - Static: TypeScript strict check.
@@ -50,6 +51,33 @@
 - Isolated restore: pass; clean install, 12 tests, strict TypeScript, and production build all passed from `/tmp/habitat-sim-restore-20260717T162446Z`.
 - Final documentation-complete archive: `habitat-sim-20260717T162717Z.tar.gz`; SHA-256 verification and restore to `/tmp/habitat-sim-restore-20260717T162717Z` passed after closeout artifacts were added.
 
+### Six-Expert Scientific and Interface Iteration
+
+- `npm run check`: pass; strict TypeScript, 14 deterministic unit/integration tests, and optimized production build.
+- `npm run test:browser`: pass; 10 Chromium runs across desktop and mobile projects, including causal observatory content, origin gates, grouped Lab controls, custom cargo, safe sterile lineages, and root-level mobile horizontal-overflow assertions.
+- `npm run screenshots -- /tmp/habitat-sim-expert-ui-final`: pass; 40 captures cover all sterile roots, internal scroll depth, and living five-lineage Biosphere, Lineages, and Timeline states at desktop and mobile sizes.
+- Sequential expert weighted assessment: 89.5/100, up from 70.1; `docs/expert-review-2026-07-17.md` records all six independent reviews, their evidence, implemented findings, and research limits.
+- Interface audit: pass at 95.4/100; `docs/ui-audit/2026-07-17-expert-iteration.md` records the capture matrix, findings, and residual risks.
+- `npm audit --audit-level=high`: zero known vulnerabilities.
+- Production bundle: 258.99 kilobytes JavaScript and 39.11 kilobytes CSS before compression; 81.92 and 8.15 kilobytes gzip respectively.
+- Post-change archive: `habitat-sim-20260717T182525Z.tar.gz`; SHA-256 and tar verification passed.
+- Isolated restore: pass at `/tmp/habitat-sim-expert-final-restore-20260717T182525Z`; clean install found zero vulnerabilities and restored `npm run check` passed with all 14 tests and the production build.
+- Recovery evidence: `docs/restore-drills/2026-07-17-expert-iteration.md`.
+
+### Sim Wizard and Scenario Laboratory 1.1.0
+
+- `npm run check`: pass; strict TypeScript, 27 deterministic unit/integration tests across four files, and an optimized production build.
+- `npm run build:pages`: pass; generated HTML uses `/habitat-sim/assets/` for the repository Pages base.
+- `npm run test:browser`: pass; 20 Chromium runs across desktop and mobile projects cover the seven-step Wizard, adaptive guidance, preset persistence/duplication/deletion/undo, reviewed launch, interventions, all primary workspaces, accessible names, 44-pixel Wizard targets, and compact-width geometry.
+- `npm audit --audit-level=high`: zero known vulnerabilities.
+- Production bundle: 350.31 kilobytes JavaScript and 75.09 kilobytes CSS before compression; 107.26 and 14.09 kilobytes gzip respectively, inside the 120/20-kilobyte release budgets.
+- Full-state visual audit: 44 canonical states at five production resolutions generated 452 captures; two targeted 118-capture mobile correction/Pages-form sweeps produced 688 total images with zero capture, console, root-overflow, or tracked-panel-overflow failures.
+- Import/checkpoint hardening: version-2 exports resume the exact pseudo-random stream; legacy version-1 remains deterministic; unknown enums, invalid nested records, non-finite fields, and physically impossible imported indices are rejected or bounded.
+- Scenario/persistence gates: 19 immutable built-ins normalize without mutation; pre-life oxygen, origin taxonomy, multi-star forcing proxies, unsupported biochemistry, user-preset lifecycle, import conflicts, and bounded draft storage have direct tests.
+- Pages-equivalent local verification: the application shell and hashed JavaScript/CSS assets return HTTP 200 from `/habitat-sim/`; the final mobile matrix ran against that exact subpath build.
+- Recovery: the checksum-verified archive `habitat-sim-20260718T005119Z.tar.gz` restored into an isolated directory; clean `npm ci`, all 27 tests, strict TypeScript, root build, Pages build, and source-hash parity passed. See `docs/restore-drills/2026-07-17-sim-wizard-release.md`.
+- Public-host evidence is recorded after the deployed commit is verified.
+
 ## Remediated Findings
 
 - Non-finite planet parameters incorrectly fell to lower bounds instead of documented defaults.
@@ -62,4 +90,4 @@ All findings were independently diagnosed, corrected, and covered by rerun evide
 
 ## Release Decision
 
-Recommendation: `go`. No required validation layer is deferred. The scientific model remains explanatory and uncertainty-labeled rather than predictive; this is a product constraint, not an unresolved release defect.
+Current recommendation: `conditional go`. Local implementation, science, responsive, regression, performance, security, and Pages-form gates pass. Final release status becomes `go` only after the documentation-complete archive restores cleanly and the pushed GitHub Pages commit, application shell, generated assets, and live interaction smoke test pass. The scientific model remains explanatory and uncertainty-labeled rather than predictive; this is a product constraint, not an unresolved release defect.
