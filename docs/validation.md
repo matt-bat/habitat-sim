@@ -90,6 +90,9 @@
 - Production bundle: 350.40 kilobytes JavaScript and 75.67 kilobytes CSS before compression; 106.05 and 14.01 kilobytes deterministic gzip respectively, leaving 13.95 and 5.99 kilobytes of enforced headroom.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 - `npm run build:pages` and `scripts/verify-pages.mjs`: pass; the repository-subpath shell and both generated assets were verified from the local Pages-form build.
+- GitHub Actions run `29675756737`: pass; quality, audit, budgets, all 70 browser checks, Pages-form build, deployment, and the workflow's hosted shell/asset verifier are green.
+- Public host: `https://matt-bat.github.io/habitat-sim/` and both generated assets pass an independent post-workflow verification.
+- Hosted reflow evidence: all 44 canonical states generated 118 captures at 320 × 568 with zero root or visible tracked-panel overflow failures.
 - Diagnosed corrections: shrink-constrained Lab selects, Wizard seed rows, source-link targets, keyboard-focusable scroll regions, 320-pixel primary navigation, and compact Wizard title rhythm all have direct rerun evidence.
 - Remaining assurance boundary: automated rules complement rather than replace manual screen-reader and unusual platform-font sessions; no known release defect is deferred.
 
@@ -105,4 +108,4 @@ All findings were independently diagnosed, corrected, and covered by rerun evide
 
 ## Release Decision
 
-Recommendation: `go`. Local implementation, science, responsive, regression, performance, security, recovery, GitHub Actions, public Pages, live assets, and hosted five-resolution interaction gates pass. No required validation layer is deferred. The scientific model remains explanatory and uncertainty-labeled rather than predictive; this is a product constraint, not an unresolved release defect.
+Recommendation: `go`. Local implementation, science, responsive, regression, performance, security, recovery, GitHub Actions, public Pages, live assets, five-engine/device automation, and hosted reflow interaction gates pass. No required validation layer is deferred. The scientific model remains explanatory and uncertainty-labeled rather than predictive; this is a product constraint, not an unresolved release defect.

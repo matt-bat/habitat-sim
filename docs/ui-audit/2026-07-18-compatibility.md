@@ -37,7 +37,7 @@ The 70 checks include core simulation workflows, all seven Wizard steps, preset 
 | WCAG reflow | 320 × 568 | 118 |
 | **Total** | six profiles | **570** |
 
-All 44 canonical states were captured with fixed time, reduced motion, deterministic state setup, and top/middle/bottom internal depth where content overflowed vertically. The harness treats document and every visible tracked-panel horizontal overflow as a hard failure. Result: zero failures.
+All 44 canonical states were captured with fixed time, reduced motion, deterministic state setup, and top/middle/bottom internal depth where content overflowed vertically. The harness treats document and every visible tracked-panel horizontal overflow as a hard failure. Result: zero failures. After deployment, the complete 320 × 568 profile was repeated against the public Pages application, adding 118 hosted captures with zero failures.
 
 Manual spot inspection included a living ecosystem graph, sterile planetary observatory, populated Lab snapshot controls, tablet atmosphere editor, mobile launch review, and 320-pixel experimental-preset library. Hierarchy, navigation, action reachability, touch sizing, data density, and visual identity remained intact in each.
 
@@ -60,4 +60,4 @@ Manual spot inspection included a living ecosystem graph, sterile planetary obse
 
 ## Decision
 
-Pass. No known browser-engine, automated-accessibility, 320-pixel reflow, touch-target, tracked-overflow, or bundle-budget release defect remains. Manual assistive-technology and unusually constrained graphics hardware remain honest external assurance boundaries.
+Pass. GitHub Actions run `29675756737`, public Pages deployment, independent hosted shell/asset verification, and the hosted 118-capture reflow sweep all pass. No known browser-engine, automated-accessibility, 320-pixel reflow, touch-target, tracked-overflow, or bundle-budget release defect remains. Manual assistive-technology and unusually constrained graphics hardware remain honest external assurance boundaries.
