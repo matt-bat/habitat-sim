@@ -18,7 +18,7 @@
 | Error prevention | pass | Normalized inputs, bounded files/data, explicit speculative labels |
 | Recognition over recall | pass | Six visible root controls and labeled actions; keyboard shortcuts are optional |
 | Progressive disclosure | pass | Summary first, dedicated root workspaces, grouped Lab controls, and scroll-contained scientific detail |
-| Accessibility | partial | Semantic controls, focus, reduced motion, labels, non-color tags, and desktop/mobile browser flows pass; a dedicated screen-reader and automated rules audit is still separate work |
+| Accessibility | pass (automated) | Semantic controls, keyboard-focusable scroll regions, reduced motion, labels, non-color tags, and axe-core WCAG A/AA scans pass across 65 root/Wizard scenes; manual screen-reader sessions remain a separate assurance layer |
 | Responsive adaptation | pass | Fixed desktop frame and reachable mobile stacked fallback |
 | Motion restraint | pass | Only slow orbit and play pulse; reduced-motion removes both |
 | Content-first discipline | pass | Visual supports state; primary data and actions remain readable without animation |
@@ -34,4 +34,4 @@
 
 ## Remaining Risk
 
-Twenty desktop/mobile Chromium workflows pass. The final audit covers 44 canonical product states at 1920 × 1080, 1440 × 900, 1280 × 800, 768 × 1024, and 390 × 844. Iterative local, corrected-mobile, and two public Pages sweeps produced 1,592 captures; the final 452-image hosted sweep promoted overflow in every visible tracked panel to a hard failure and passed with no browser, focus, console, page, root-overflow, or panel-overflow defect. The weighted evidence is in `docs/ui-audit/2026-07-17-sim-wizard.md`. Remaining risk is limited to dedicated assistive-technology sessions, user-scaled typography, cross-engine rendering, and very low-end graphics hardware—not basic responsive reachability.
+Seventy browser checks cover five engine/device profiles: desktop Chromium, Pixel 7 Chromium, desktop Firefox, desktop WebKit, and iPhone 15 WebKit. Automated accessibility scans cover all six root workspaces and seven Wizard steps in each profile. The final local audit covers 44 canonical product states at 1920 × 1080, 1440 × 900, 1280 × 800, 768 × 1024, 390 × 844, and the WCAG reflow width of 320 × 568; 570 captures passed with no root or tracked-panel overflow. Earlier local and public evidence remains recorded in `docs/ui-audit/2026-07-17-sim-wizard.md`; the new cross-engine gate is in `docs/ui-audit/2026-07-18-compatibility.md`. Remaining risk is limited to manual assistive-technology sessions, unusual browser/operating-system font substitution, and very low-end graphics hardware—not basic responsive reachability or engine compatibility.

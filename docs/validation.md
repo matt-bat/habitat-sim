@@ -80,6 +80,19 @@
 - Public host: `https://matt-bat.github.io/habitat-sim/` returns HTTP 200; both generated JavaScript/CSS assets return HTTP 200.
 - Hosted interface: two complete five-profile, 44-state sweeps generated 904 public captures. The final 452-capture sweep enforced root and every visible tracked-panel overflow as hard failures and completed with none; total local/hosted iterative evidence is 1,592 screenshots.
 
+### Cross-Engine Accessibility and Reflow Hardening 1.1.1
+
+- `npm run check`: pass; strict TypeScript, 27 deterministic unit/integration tests, optimized production build, and enforced bundle budgets.
+- `npm run test:browser`: pass; 70 checks across desktop Chromium, Pixel 7 Chromium, desktop Firefox, desktop WebKit, and iPhone 15 WebKit.
+- Automated accessibility: 65 canonical scene scans cover all six root workspaces and all seven Wizard steps in every profile using WCAG 2 A/AA, WCAG 2.1 A/AA, and WCAG 2.2 AA rule tags with zero violations.
+- Reflow and touch geometry: all roots and Wizard steps pass at 320 × 568; primary navigation requires no horizontal scroll and preserves 44-pixel minimum targets.
+- Final visual corpus: 44 product states across six resolutions generated 570 top/middle/bottom captures with zero document or visible tracked-panel overflow failures.
+- Production bundle: 350.40 kilobytes JavaScript and 75.67 kilobytes CSS before compression; 106.05 and 14.01 kilobytes deterministic gzip respectively, leaving 13.95 and 5.99 kilobytes of enforced headroom.
+- `npm audit --audit-level=high`: zero known vulnerabilities.
+- `npm run build:pages` and `scripts/verify-pages.mjs`: pass; the repository-subpath shell and both generated assets were verified from the local Pages-form build.
+- Diagnosed corrections: shrink-constrained Lab selects, Wizard seed rows, source-link targets, keyboard-focusable scroll regions, 320-pixel primary navigation, and compact Wizard title rhythm all have direct rerun evidence.
+- Remaining assurance boundary: automated rules complement rather than replace manual screen-reader and unusual platform-font sessions; no known release defect is deferred.
+
 ## Remediated Findings
 
 - Non-finite planet parameters incorrectly fell to lower bounds instead of documented defaults.

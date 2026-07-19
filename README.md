@@ -1,7 +1,7 @@
 # Habitat Sim
 
 [![Quality](https://github.com/matt-bat/habitat-sim/actions/workflows/ci.yml/badge.svg)](https://github.com/matt-bat/habitat-sim/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.1.0-72d5b0)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.1-72d5b0)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-attribution--required%20non--commercial-d9ad68)](./LICENSE)
 
 **Live application:** [matt-bat.github.io/habitat-sim](https://matt-bat.github.io/habitat-sim/)
@@ -30,7 +30,8 @@ The project is a comparative explanatory model, not a first-principles geophysic
 - Editable, duplicable, importable, exportable, and locally persistent user presets kept separate from running simulation snapshots
 - Versioned JSON import/export with bounded validation and exact version-2 random-stream checkpoint resume
 - Purpose-built causal observatory with orbit/climate instrumentation, a six-system ribbon, origin-gate matrix, ecosystem topology, lineage energy accounting, and grouped live-preview experiment controls
-- Fixed-frame Spatial Canvas interface with responsive tablet/mobile adaptation, 44-pixel mobile targets, and a reproducible five-resolution, 44-state scroll-depth screenshot audit
+- Fixed-frame Spatial Canvas interface with responsive tablet/mobile adaptation, 44-pixel mobile targets, and a reproducible six-resolution, 44-state scroll-depth screenshot audit down to 320 CSS pixels
+- Automated WCAG A/AA scene scans and functional coverage across Chromium, Firefox, WebKit, Pixel 7, and iPhone 15 profiles
 
 The locked scope and acceptance criteria are in [MVP.md](./MVP.md).
 
@@ -41,6 +42,7 @@ The locked scope and acceptance criteria are in [MVP.md](./MVP.md).
 - Vite
 - Vitest
 - Playwright
+- axe-core
 - Lucide icons
 
 ## Local Setup
@@ -69,11 +71,12 @@ The Pages-form preview is served at `http://127.0.0.1:4174/habitat-sim/`.
 npx tsc --noEmit
 npm test
 npm run build
+npm run check:budgets
 npm run test:browser
 npm run screenshots -- artifacts/ui
 ```
 
-`npm run test:browser` builds and previews the app on port `4174`, then runs desktop and mobile Chromium flows. Browser binaries may require a separate Playwright install on a new machine.
+`npm run test:browser` builds and previews the app on port `4174`, then runs 70 functional, accessibility, and reflow checks across desktop Chromium, Pixel 7 Chromium, desktop Firefox, desktop WebKit, and iPhone 15 WebKit. On a new machine, install the required browser engines with `npx playwright install --with-deps chromium firefox webkit`.
 
 ## Repository Map
 
@@ -133,6 +136,7 @@ Security reports should follow [SECURITY.md](./SECURITY.md). Contributions shoul
 - [Observatory screenshot audit](./docs/ui-audit/2026-07-17.md)
 - [Expert-iteration interface audit](./docs/ui-audit/2026-07-17-expert-iteration.md)
 - [Five-resolution Sim Wizard interface audit](./docs/ui-audit/2026-07-17-sim-wizard.md)
+- [Cross-engine accessibility and reflow audit](./docs/ui-audit/2026-07-18-compatibility.md)
 - [Validation and regression map](./docs/validation.md)
 - [Skill application and policy audit](./docs/skill-application.md)
 - [User instruction tracker](./user-instructions.md)

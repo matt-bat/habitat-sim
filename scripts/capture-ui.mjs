@@ -10,7 +10,8 @@ const allProfiles = [
   { name: "laptop-1440x900", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false },
   { name: "compact-1280x800", viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false },
   { name: "tablet-768x1024", viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true },
-  { name: "mobile-390x844", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
+  { name: "mobile-390x844", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
+  { name: "reflow-320x568", viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true }
 ];
 const profiles = process.env.HABITAT_PROFILE ? allProfiles.filter((item) => item.name === process.env.HABITAT_PROFILE) : allProfiles;
 if (!profiles.length) throw new Error(`Unknown HABITAT_PROFILE: ${process.env.HABITAT_PROFILE}`);

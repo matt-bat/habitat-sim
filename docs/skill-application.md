@@ -11,23 +11,23 @@ All 31 skills were loaded. This report records concrete application without inve
 | `governance-enforcement` | Governance artifacts generated and validator run. | applied |
 | `requirement-clarifier` | Goal, scope, assumptions, constraints, acceptance criteria, and non-goals locked in `MVP.md`. | applied |
 | `quizme-mode` | Parsed as off; no pre-execution question gate was activated. | applied, inactive |
-| `diagnose-before-fix` | Verified unmatched syntax and tar ownership failures before patching their causes. | applied |
+| `diagnose-before-fix` | Verified syntax, archive ownership, intrinsic-width, focusability, touch-target, and compact-title causes before patching them. | applied |
 | `semantic-policy-audit` | Expected-versus-observed matrix below checks declaration, execution, evidence, and conflicts. | applied |
 | `interdependent-change-planning` | Tick order, domains, state contracts, UI consumers, tests, and docs mapped in `docs/architecture.md`. | applied |
 | `thoughtful-approach` | Core user outcome and deferred features separated in `MVP.md`. | applied |
 | `thoroughly-rate-review` | Protoverse Lab scored 77.6/100 with weighted evidence in `docs/source-review.md`. | applied |
-| `user-instructions-tracker` | Twelve directives tracked with status and evidence in `user-instructions.md`. | applied |
+| `user-instructions-tracker` | Twenty-one directives tracked with status and evidence in `user-instructions.md`. | applied |
 | `history-indexing` | One bounded major-decision entry in `docs/chat-history-index.md`. | applied |
 | `conversation-retention-summary` | One recent conversation entry in the capped summary. | applied |
 | `ui-spatial-canvas` | Fixed application frame, root views, one-click home, in-situ controls, responsive exception. | applied |
 | `ui-design-skills` | Hierarchy, feedback, keyboard controls, focus, reduced motion, semantic labels, mobile reachability. | applied |
-| `effective-testing-methods` | Unit behavior matrix and desktop/mobile Playwright flows added. | applied |
+| `effective-testing-methods` | Twenty-seven deterministic tests plus a 70-check Chromium/Firefox/WebKit accessibility and reflow matrix added. | applied |
 | `scripted-command-execution` | Clean install, audit, type check, tests, production build, browser checks, backup, restore, and validators ran deterministically. | applied |
-| `pseudo-agentic-automation` | Six Playwright flows passed across desktop and mobile Chromium projects. | applied |
+| `pseudo-agentic-automation` | Seventy Playwright checks span five engine/device profiles; the six-resolution visual harness produced 570 clean captures. | applied |
 | `token-reduction` | Targeted reads, concise summaries, project index, and explicit publication scope. | applied |
 | `artifact-budget-enforcement` | Explicit caps in `docs/cache-budgets.md`; timeline, snapshots, library, events, and imports bounded in code. | applied |
 | `order-of-operations` | Review → MVP → governance/backup → engine → UI → tests/docs → validation. | applied |
-| `regression-prevention` | Static, audit, unit, production-build, desktop/mobile browser, backup, and restored-build layers passed. | applied |
+| `regression-prevention` | Static, audit, unit, bundle-budget, production-build, five-profile browser, reflow, visual, backup, and restored-build layers passed. | applied |
 | `file-structure-optimization` | Domain-first source, component, test, document, and script boundaries. | applied |
 | `doc-maintenance` | README, architecture, science, operations, review, governance, and tracker synchronized. | applied |
 | `file-maintenance` | Paths, commands, dependency audit, duplicate sources, and status evidence checked. | applied |

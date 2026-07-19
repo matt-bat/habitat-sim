@@ -2,6 +2,25 @@
 
 All notable changes to Habitat Sim are documented here.
 
+## 1.1.1 - 2026-07-19
+
+### Added
+
+- Five-profile browser matrix spanning desktop Chromium, Pixel 7 Chromium, desktop Firefox, desktop WebKit, and iPhone 15 WebKit.
+- Automated axe-core WCAG 2 A/AA, WCAG 2.1 A/AA, and WCAG 2.2 AA scans across every root workspace and all seven Sim Wizard steps.
+- Enforced 320 CSS-pixel reflow coverage for all root workspaces, Wizard steps, visible controls, and primary navigation targets.
+- Deterministic gzip bundle budgets of 120 kilobytes for JavaScript and 20 kilobytes for CSS, enforced by the standard check and continuous integration.
+- A sixth 320 × 568 visual profile; the finalized 44-state corpus now contains 570 scroll-depth captures across six resolutions.
+
+### Corrected
+
+- Lab controls and deterministic-seed rows now shrink within extreme-width grid and flex containers instead of clipping their selects or actions.
+- Wizard cards, citations, source links, and contextual science links retain accessible hit areas without forcing horizontal overflow.
+- Scrollable workspaces are keyboard-focusable and carry adaptive region labels for assistive technology.
+- The six-destination mobile navigation fits at 320 CSS pixels while retaining 44-pixel minimum touch targets.
+- Compact Wizard headings begin inside the intended top rhythm across all browser engines.
+- Exhaustive accessibility scans use a scoped timeout that tolerates slower Firefox/WebKit analysis without weakening any rule or assertion.
+
 ## 1.1.0 - 2026-07-17
 
 ### Added
