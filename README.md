@@ -1,18 +1,30 @@
 # Habitat Sim
 
 [![Quality](https://github.com/matt-bat/habitat-sim/actions/workflows/ci.yml/badge.svg)](https://github.com/matt-bat/habitat-sim/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.1.1-72d5b0)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.0-72d5b0)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-attribution--required%20non--commercial-d9ad68)](./LICENSE)
 
 **Live application:** [matt-bat.github.io/habitat-sim](https://matt-bat.github.io/habitat-sim/)
 
-Habitat Sim is a deterministic planetary-life sandbox by Matt Bateman. It models one planet as coupled stellar, orbital, interior, atmosphere, surface, chemistry, population, and ecology systems. Users can build research-framed experiments in a guided Sim Wizard, test origin-of-life hypotheses, intervene during a run, inspect evolving lineages, and drill into a causal timeline.
+Habitat Sim is a deterministic planetary-life sandbox by Matt Bateman. It models one planet as coupled stellar, orbital, interior, atmosphere, surface, chemistry, population, and ecology systems. Users can build research-framed experiments in a guided Sim Wizard, test origin-of-life hypotheses, intervene during a run, inspect evolving lineages, drill into a causal timeline, and map uncertainty across reproducible ensembles.
+
+> Like this project? You can [support ongoing development on Ko-fi](https://ko-fi.com/matt0bat), helping me maintain existing tools and release more public projects.
 
 The project is a comparative explanatory model, not a first-principles geophysics, climate, chemistry, genetics, or anatomy solver. Outputs are labeled as grounded, coarse, or speculative. Habitable-zone placement is context, not proof of habitability or life.
+
+## How it works
+
+1. The Sim Wizard validates a seed, stellar system, planetary conditions, chemistry assumptions, and intervention plan.
+2. The TypeScript engine advances deterministic stellar, orbital, interior, atmosphere, surface, prebiotic, population, and ecology systems in a fixed order.
+3. Each tick records causal events, snapshots, milestones, diagnostics, and reproducible random-stream state for inspection or export.
+4. React renders the observatory and can run bounded seed ensembles entirely in the browser; local storage retains user-owned presets.
+
+There is no AI backend, model inference, training data, or generative-AI service. The scientific model is explicit deterministic TypeScript and the deployed application is static browser code.
 
 ## Production Capabilities
 
 - Seeded deterministic planet experiments
+- Outcome Observatory for 8–72 fixed-condition seeded histories or bounded one-parameter sweeps, with exact replicates, safe cancellation, percentile intervals, stage constellations, per-history trajectories, deterministic drill-in, and JSON/CSV export
 - One-, two-, and three-star aggregate forcing experiments; stellar age, spectral class, high-energy history, photosynthetic-light opportunity, eccentric forcing extremes, solar day, spectral habitable-zone limits, gravity, escape velocity, orbital period, density, composition, core, and tectonic regime
 - State-dependent albedo, absorbed stellar energy, partial-pressure greenhouse decomposition, climate regimes, hydrological and climate-buffer indices, snowball/runaway/collapse warnings, and abiotic-oxygen risk
 - Partial-pressure atmospheric ledger, real-scale pH proxy, carbon-cycle balance, land/seafloor weathering, outgassing, separate phosphorus/nitrogen/iron access, oxygen sources/sinks, persistent detritus, and ranked causal bottlenecks
@@ -29,8 +41,8 @@ The project is a comparative explanatory model, not a first-principles geophysic
 - Seven-step Sim Wizard with reversible navigation, deterministic plans, adaptive causal guidance, research citations, launch blockers, model-boundary acknowledgement, draft autosave, and immutable built-in versus user-owned preset semantics
 - Editable, duplicable, importable, exportable, and locally persistent user presets kept separate from running simulation snapshots
 - Versioned JSON import/export with bounded validation and exact version-2 random-stream checkpoint resume
-- Purpose-built causal observatory with orbit/climate instrumentation, a six-system ribbon, origin-gate matrix, ecosystem topology, lineage energy accounting, and grouped live-preview experiment controls
-- Fixed-frame Spatial Canvas interface with responsive tablet/mobile adaptation, 44-pixel mobile targets, and a reproducible six-resolution, 44-state scroll-depth screenshot audit down to 320 CSS pixels
+- Purpose-built causal observatory with orbit/climate instrumentation, a six-system ribbon, origin-gate matrix, ecosystem topology, lineage energy accounting, grouped live-preview experiment controls, and a dedicated full-frame uncertainty laboratory
+- Fixed-frame Spatial Canvas interface with responsive tablet/mobile adaptation, 44-pixel mobile targets, and a reproducible six-resolution, 48-state, 626-capture scroll-depth screenshot audit down to 320 CSS pixels
 - Automated WCAG A/AA scene scans and functional coverage across Chromium, Firefox, WebKit, Pixel 7, and iPhone 15 profiles
 
 The locked scope and acceptance criteria are in [MVP.md](./MVP.md).
@@ -76,14 +88,14 @@ npm run test:browser
 npm run screenshots -- artifacts/ui
 ```
 
-`npm run test:browser` builds and previews the app on port `4174`, then runs 70 functional, accessibility, and reflow checks across desktop Chromium, Pixel 7 Chromium, desktop Firefox, desktop WebKit, and iPhone 15 WebKit. On a new machine, install the required browser engines with `npx playwright install --with-deps chromium firefox webkit`.
+`npm run test:browser` builds and previews the app on port `4174`, then runs 95 functional, accessibility, and reflow checks across desktop Chromium, Pixel 7 Chromium, desktop Firefox, desktop WebKit, and iPhone 15 WebKit. On a new machine, install the required browser engines with `npx playwright install --with-deps chromium firefox webkit`.
 
 ## Repository Map
 
 ```text
 src/
   components/       interface views and visual primitives
-  features/         Lab and Sim Wizard product flows
+  features/         Lab, Sim Wizard, and Outcome Observatory product flows
   simulation/       deterministic domain model
   storage/          bounded preset and draft persistence
 tests/
@@ -112,6 +124,7 @@ See [local operations](./docs/operations.md) for scope, retention, recovery obje
 - Population aggregates stand in for individuals and literal genomes.
 - Structure names describe functional analogues; alien morphology is not predicted.
 - Origin probabilities are model assumptions around unresolved science.
+- Ensemble fractions and percentile ranges describe repeated runs of this model only; they are not calibrated probabilities or confidence intervals for nature.
 - Imported snapshots resume from a deterministic checkpoint stream but are not a cryptographic audit trail.
 - The simulation remains on the main browser thread for the MVP.
 - GitHub Pages hosts the static browser application; no backend, accounts, telemetry, or cloud sync are included.
@@ -137,6 +150,7 @@ Security reports should follow [SECURITY.md](./SECURITY.md). Contributions shoul
 - [Expert-iteration interface audit](./docs/ui-audit/2026-07-17-expert-iteration.md)
 - [Five-resolution Sim Wizard interface audit](./docs/ui-audit/2026-07-17-sim-wizard.md)
 - [Cross-engine accessibility and reflow audit](./docs/ui-audit/2026-07-18-compatibility.md)
+- [Outcome Observatory six-resolution audit](./docs/ui-audit/2026-07-25-outcome-observatory.md)
 - [Validation and regression map](./docs/validation.md)
 - [Skill application and policy audit](./docs/skill-application.md)
 - [User instruction tracker](./user-instructions.md)
